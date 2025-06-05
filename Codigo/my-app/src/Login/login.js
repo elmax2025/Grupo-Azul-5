@@ -1,14 +1,13 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, Button, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, TextInput, Button } from 'react-native';
 
 export default function Login() {
-  // Estados
+  
   const [usuario, setUsuario] = useState('');
   const [contrasena, setContrasena] = useState('');
   const [mensajeError, setMensajeError] = useState('');
   const [mostrarError, setMostrarError] = useState(false);
-  const [mostrarContrasena, setMostrarContrasena] = useState(false);
 
   const manejarPresion = () => {
     if (!usuario.trim() || !contrasena.trim()) {
@@ -20,43 +19,29 @@ export default function Login() {
     }
   };
 
-  const manejarPresion2 = () => {
-    // Lógica para crear usuario
-  };
-
-  const toggleMostrarContrasena = () => {
-    setMostrarContrasena(!mostrarContrasena);
-  };
-
   return (
+
     <View style={styles.container}>
-      <Text style={styles.texto1}>Escribe Usuario:</Text>
+      <Text style={styles.texto2}>ACCEDÉ:</Text>
+      <Text style={styles.texto1}>EMAIL:</Text>
       
       <TextInput
         style={styles.input}
-        placeholder="Usuario"
+        placeholder="Email"
         onChangeText={text => setUsuario(text)}
         value={usuario}
       />
 
-      <Text style={styles.texto1}>Escribe Contraseña:</Text>
+      <Text style={styles.texto1}>CONTRASEÑA:</Text>
 
       <View style={styles.passwordContainer}>
         <TextInput
           style={styles.passwordInput}
           placeholder="Contraseña"
-          secureTextEntry={!mostrarContrasena}
+          secureTextEntry
           onChangeText={text => setContrasena(text)}
           value={contrasena}
         />
-        <TouchableOpacity 
-          style={styles.showButton}
-          onPress={toggleMostrarContrasena}
-        >
-          <Text style={styles.showButtonText}>
-            {mostrarContrasena ? 'Ocultar' : 'Mostrar'}
-          </Text>
-        </TouchableOpacity>
       </View>
      
       {mostrarError && (
@@ -65,15 +50,8 @@ export default function Login() {
       
       <View style={styles.buttonContainer}>
         <Button 
-          title="Iniciar Sesión" 
+          title="Ingresar" 
           onPress={manejarPresion}
-        />
-        
-        <View style={styles.buttonSpacer} />
-        
-        <Button 
-          title="Crear Usuario" 
-          onPress={manejarPresion2}
         />
       </View>
       
@@ -84,10 +62,16 @@ export default function Login() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flex: 10,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
+  },
+  texto2: {
+    padding: 10,
+    marginBottom: 10,
+    color: 'black',
+    width: '100%',
   },
   texto1: {
     backgroundColor: '#5555',
