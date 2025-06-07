@@ -38,7 +38,7 @@ export default function Contraseñaperdida() {
          
           <View style={styles.buttonContainer}>
             <Button 
-              title="Ingresar" 
+              title="Enviar" 
               onPress={manejarPresion}
             />
           </View>

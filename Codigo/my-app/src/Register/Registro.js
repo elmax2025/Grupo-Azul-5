@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, Button, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, Text, View, TextInput, Button, Alert, Platform, Pressable } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 export default function Registro() {
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
-  const [usuario, setUsuario] = useState('');
   const [contrasena, setContrasena] = useState('');
-  const [confirmarContrasena, setConfirmarContrasena] = useState('');
-  const [mostrarContrasena, setMostrarContrasena] = useState(false);
   const [errores, setErrores] = useState({});
+  const [date, setDate] = useState(new Date());
+  const [showPicker, setShowPicker] = useState(false);
+  const [selected, setSelected] = useState(false);
 
   const validarCampos = () => {
     const nuevosErrores = {};
@@ -22,7 +24,21 @@ export default function Registro() {
     if (contrasena !== confirmarContrasena) nuevosErrores.confirmarContrasena = 'Las contraseñas no coinciden';
 
     setErrores(nuevosErrores);
+
     return Object.keys(nuevosErrores).length === 0;
+  };
+
+  const togglePicker = () => {
+      setShowPicker(true);
+    };
+  
+  const onChange = (event, selectedDate) => {
+    if (event.type === 'set') {
+      const currentDate = selectedDate || date;
+      setDate(currentDate);
+      setSelected(true);
+    }
+    setShowPicker(Platform.OS === 'ios'); // Si es Android, lo cerramos
   };
 
   const handleRegistro = () => {
@@ -35,24 +51,19 @@ export default function Registro() {
             // Limpiar el formulario después del registro
             setNombre('');
             setEmail('');
-            setUsuario('');
             setContrasena('');
-            setConfirmarContrasena('');
           }}
         ]
       );
     }
   };
 
-  const toggleMostrarContrasena = () => {
-    setMostrarContrasena(!mostrarContrasena);
-  };
-
   return (
     <View style={styles.container}>
-      <Text style={styles.titulo}>Crear Cuenta</Text>
+      <Text style={styles.titulo}>Creá una cuenta Nueva</Text>
+      <Text style={styles.titulo}>¿Ya estás registrado? Iniciá sesión aquí</Text>
       
-      <Text style={styles.label}>Nombre Completo:</Text>
+      <Text style={styles.label}>Nombre:</Text>
       <TextInput
         style={styles.input}
         placeholder="Ingrese su nombre completo"
@@ -72,49 +83,39 @@ export default function Registro() {
       />
       {errores.email && <Text style={styles.errorText}>{errores.email}</Text>}
 
-      <Text style={styles.label}>Usuario:</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Cree un nombre de usuario"
-        autoCapitalize="none"
-        onChangeText={setUsuario}
-        value={usuario}
-      />
-      {errores.usuario && <Text style={styles.errorText}>{errores.usuario}</Text>}
-
       <Text style={styles.label}>Contraseña:</Text>
       <View style={styles.passwordContainer}>
         <TextInput
           style={styles.passwordInput}
           placeholder="Cree una contraseña"
-          secureTextEntry={!mostrarContrasena}
+          secureTextEntry
           onChangeText={setContrasena}
           value={contrasena}
         />
-        <TouchableOpacity 
-          style={styles.showButton}
-          onPress={toggleMostrarContrasena}
-        >
-          <Text style={styles.showButtonText}>
-            {mostrarContrasena ? 'Ocultar' : 'Mostrar'}
-          </Text>
-        </TouchableOpacity>
       </View>
       {errores.contrasena && <Text style={styles.errorText}>{errores.contrasena}</Text>}
 
-      <Text style={styles.label}>Confirmar Contraseña:</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Repita su contraseña"
-        secureTextEntry={!mostrarContrasena}
-        onChangeText={setConfirmarContrasena}
-        value={confirmarContrasena}
-      />
-      {errores.confirmarContrasena && <Text style={styles.errorText}>{errores.confirmarContrasena}</Text>}
+      <Text style={styles.label}>Fecha de nacimiento:</Text>
+     <Pressable style={styles.selectorBox} onPress={togglePicker}>
+        <Text style={styles.text}>
+          {selected ? date.toLocaleDateString() : 'Seleccionar'}
+        </Text>
+        <Ionicons name="chevron-down-outline" size={20} color="#555" />
+      </Pressable>
+
+      {showPicker && (
+        <DateTimePicker
+          value={date}
+          mode="date"
+          display="default"
+          onChange={onChange}
+        />
+      )}
+
 
       <View style={styles.buttonContainer}>
         <Button 
-          title="Registrarse" 
+          title="Ingresar" 
           onPress={handleRegistro}
           color="#4CAF50"
         />
@@ -142,6 +143,23 @@ const styles = StyleSheet.create({
     marginBottom: 5,
     color: '#555',
     fontWeight: '500',
+  },
+  selectorBox: {
+    width: 250,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ccc',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    justifyContent: 'space-between',
+    elevation: 3, // sombra en Android
+    shadowColor: '#000', // sombra en iOS
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   input: {
     height: 45,

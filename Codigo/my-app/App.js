@@ -3,11 +3,12 @@ import Registro from './src/Register/Registro.js'
 import Contraseñaperdida from './src/Contraseñaperdida/contraseña.js'
 import { StyleSheet, View } from 'react-native';
 
+
 export default function App() {
 
   return (
     <View style={styles.container}>
-      <Contraseñaperdida/>
+      <Registro/>
     </View>
   );
 }
