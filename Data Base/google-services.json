@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "609977298920",
+    "firebase_url": "https://spaghetti-e2346-default-rtdb.firebaseio.com",
+    "project_id": "spaghetti-e2346",
+    "storage_bucket": "spaghetti-e2346.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:609977298920:android:6827348dde2851637afe5d",
+        "android_client_info": {
+          "package_name": "Spaghetti.com"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAs-2Rn3dppMM0chHuZYoarhN_2CpLZdyU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
