@@ -1,23 +1,21 @@
-import Login from '../my-app/src/Login/login.js'
-import Registro from './src/Register/Registro.js'
-import Contraseñaperdida from './src/Contraseñaperdida/contraseña.js'
-import { StyleSheet, View } from 'react-native';
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
+import Login from './src/Login/login';
+import Registro from './src/Register/Registro';
+import Contraseñaperdida from './src/Contraseñaperdida/contraseña';
+
+const Stack = createNativeStackNavigator();
 
 export default function App() {
-
   return (
-    <View style={styles.container}>
-      <Registro/>
-    </View>
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="Registro" screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="Login" component={Login} />
+        <Stack.Screen name="Registro" component={Registro} />
+        <Stack.Screen name="Contraseñaperdida" component={Contraseñaperdida} />
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
-
-//FRONT
-const styles = StyleSheet.create({
- container: {
-    flex: 1,
-    backgroundColor: '#9958',
-    padding: 20,
-  },
-});
