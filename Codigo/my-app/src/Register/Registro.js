@@ -1,209 +1,237 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, Alert, Platform, Pressable, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Platform,
+  StyleSheet,
+  StatusBar,
+  Alert,
+  ScrollView,
+  Image,
+} from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native'; 
+
+// Firestore
+import { db } from '../../firebase/config';
+import { collection, addDoc } from 'firebase/firestore';
 
 export default function Registro() {
+  const navigation = useNavigation();
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [contrasena, setContrasena] = useState('');
-  const [errores, setErrores] = useState({});
-  const [date, setDate] = useState(new Date());
-  const [showPicker, setShowPicker] = useState(false);
-  const [selected, setSelected] = useState(false);
+  const [fechaNacimiento, setFechaNacimiento] = useState(new Date());
+  const [mostrarPicker, setMostrarPicker] = useState(false);
 
-  const validarCampos = () => {
-    const nuevosErrores = {};
-    
-    if (!nombre.trim()) nuevosErrores.nombre = 'El nombre es requerido';
-    if (!email.trim()) nuevosErrores.email = 'El email es requerido';
-    else if (!/^\S+@\S+\.\S+$/.test(email)) nuevosErrores.email = 'Email inválido';
-    if (!contrasena) nuevosErrores.contrasena = 'La contraseña es requerida';
-    else if (contrasena.length < 6) nuevosErrores.contrasena = 'Mínimo 6 caracteres';
-
-    setErrores(nuevosErrores);
-
-    return Object.keys(nuevosErrores).length === 0;
-  };
-
-  const togglePicker = () => {
-    setShowPicker(true);
-  };
-  
-  const onChange = (event, selectedDate) => {
-    if (event.type === 'set') {
-      const currentDate = selectedDate || date;
-      setDate(currentDate);
-      setSelected(true);
-    }
-    setShowPicker(Platform.OS === 'ios');
+  const onDateChange = (event, selectedDate) => {
+    const currentDate = selectedDate || fechaNacimiento;
+    setMostrarPicker(Platform.OS === 'ios');
+    setFechaNacimiento(currentDate);
   };
 
   const handleRegistro = () => {
-    if (validarCampos()) {
-      Alert.alert(
-        'Registro exitoso',
-        `Usuario ${nombre} registrado correctamente`,
-        [
-          { text: 'OK', onPress: () => {
-            setNombre('');
-            setEmail('');
-            setContrasena('');
-            setSelected(false);
-            setDate(new Date());
-          }}
-        ]
-      );
+    if (!nombre || !email || !contrasena) {
+      Alert.alert('Error', 'Por favor completá todos los campos.');
+      return;
     }
+
+    const usuariosRef = collection(db, 'usuarios');
+    addDoc(usuariosRef, {
+      nombre,
+      email,
+      contrasena,
+      fechaNacimiento: fechaNacimiento.toISOString()
+    })
+    .then(() => {
+      Alert.alert('Registro exitoso');
+      setNombre('');
+      setEmail('');
+      setContrasena('');
+      setFechaNacimiento(new Date());
+    })
+    .catch((error) => {
+      Alert.alert('Error', error.message);
+    });
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.titulo}>Creá una cuenta Nueva</Text>
-      <Text style={styles.subtitulo}>¿Ya estás registrado? Iniciá sesión aquí</Text>
-      
-      <Text style={styles.label}>Nombre:</Text>
-      <View style={styles.inputContainer}>
-        <Ionicons name="person-outline" size={24} color="#f5e8e1" style={styles.iconInput} />
-        <TextInput
-          style={styles.input}
-          placeholder="Ingrese su nombre completo"
-          placeholderTextColor="#f5e8e1"
-          onChangeText={setNombre}
-          value={nombre}
-        />
-      </View>
-      {errores.nombre && <Text style={styles.errorText}>{errores.nombre}</Text>}
+    <View style={styles.wrapper}>
+      <StatusBar backgroundColor="#8B0000" barStyle="light-content" />
+      <View style={styles.topBar} />
 
-      <Text style={styles.label}>Email:</Text>
-      <View style={styles.inputContainer}>
-        <Ionicons name="mail-outline" size={24} color="#f5e8e1" style={styles.iconInput} />
+      <Image
+        source={require('../../assets/fideos.png')}
+        style={styles.fideos}
+        resizeMode="contain"
+      />
+
+      <ScrollView contentContainerStyle={styles.container}>
+        <View style={{ width: '100%' }}>
+          <Text style={styles.titulo} numberOfLines={1} adjustsFontSizeToFit>
+            Crear una cuenta nueva
+          </Text>
+        </View>
+
+        {/*Botón para ir al Login*/}
+        <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+          <Text style={[styles.subtitulo, { textDecorationLine: 'underline', color: '#8e0c0c' }]}>
+            ¿Ya estás registrado? Iniciá sesión acá.
+          </Text>
+        </TouchableOpacity>
+
+        <Text style={styles.label}>NOMBRE</Text>
         <TextInput
           style={styles.input}
-          placeholder="Ingrese su email"
+          placeholder="Martín Pérez"
+          placeholderTextColor="#fff9ea"
+          value={nombre}
+          onChangeText={setNombre}
+        />
+
+        <Text style={styles.label}>EMAIL</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="hola@sitioincreible.com.ar"
+          placeholderTextColor="#fff9ea"
           keyboardType="email-address"
           autoCapitalize="none"
-          placeholderTextColor="#f5e8e1"
-          onChangeText={setEmail}
           value={email}
+          onChangeText={setEmail}
         />
-      </View>
-      {errores.email && <Text style={styles.errorText}>{errores.email}</Text>}
 
-      <Text style={styles.label}>Contraseña:</Text>
-      <View style={styles.inputContainer}>
-        <Ionicons name="lock-closed-outline" size={24} color="#f5e8e1" style={styles.iconInput} />
+        <Text style={styles.label}>CONTRASEÑA</Text>
         <TextInput
           style={styles.input}
-          placeholder="Cree una contraseña"
-          placeholderTextColor="#f5e8e1"
+          placeholder="******"
+          placeholderTextColor="#fff9ea"
           secureTextEntry
-          onChangeText={setContrasena}
           value={contrasena}
+          onChangeText={setContrasena}
         />
-      </View>
-      {errores.contrasena && <Text style={styles.errorText}>{errores.contrasena}</Text>}
 
-      <Text style={styles.label}>Fecha de nacimiento:</Text>
-      <Pressable style={styles.selectorBox} onPress={togglePicker}>
-        <Text style={styles.text}>
-          {selected ? date.toLocaleDateString() : 'Seleccionar'}
-        </Text>
-        <Ionicons name="chevron-down-outline" size={20} color="#f5e8e1" />
-      </Pressable>
+        <Text style={styles.label}>FECHA DE NACIMIENTO</Text>
+        <TouchableOpacity
+          style={[styles.input, styles.superpuesto]}
+          onPress={() => setMostrarPicker(true)}
+        >
+          <Text style={styles.dateText}>{fechaNacimiento.toLocaleDateString()}</Text>
+        </TouchableOpacity>
 
-      {showPicker && (
-        <DateTimePicker
-          value={date}
-          mode="date"
-          display="default"
-          onChange={onChange}
-          maximumDate={new Date()}
-        />
-      )}
+        {mostrarPicker && (
+          <DateTimePicker
+            value={fechaNacimiento}
+            mode="date"
+            display="default"
+            onChange={onDateChange}
+          />
+        )}
 
-      <TouchableOpacity style={styles.botonPersonalizado} onPress={handleRegistro} activeOpacity={0.7}>
-        <Text style={styles.textoBoton}>Registrarme</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.boton, styles.superpuesto]}
+          onPress={handleRegistro}
+        >
+          <Text style={styles.botonTexto}>Registrarse</Text>
+        </TouchableOpacity>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  wrapper: {
     flex: 1,
-    backgroundColor: '#f7931e',
-    padding: 30,
-    justifyContent: 'center',
+    backgroundColor: '#fff9ea',
+  },
+  topBar: {
+    backgroundColor: '#8e0c0c',
+    height: 80,
+    width: '100%',
+    borderBottomWidth: 4,
+    borderBottomColor: '#000',
+  },
+  container: {
+    paddingHorizontal: 24,
+    paddingBottom: 300,
+    position: 'relative',
+    zIndex: 1,
   },
   titulo: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: 54,
+    fontStyle: 'italic',
+    fontWeight: '900',
+    color: '#8e0c0c',
     textAlign: 'center',
-    marginBottom: 8,
+    marginVertical: 24,
+    fontFamily: Platform.select({
+      ios: 'Snell Roundhand',
+      android: 'cursive',
+      default: 'serif',
+    }),
+    textShadowColor: '#8e0c0c',
+    textShadowOffset: { width: 0.7, height: 0.7 },
+    textShadowRadius: 0.5,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   subtitulo: {
     fontSize: 16,
-    color: '#fff',
     textAlign: 'center',
-    marginBottom: 30,
+    marginBottom: 24,
   },
   label: {
     fontSize: 14,
-    color: '#fff',
+    fontWeight: 'bold',
+    color: '#8e0c0c',
     marginBottom: 6,
-    fontWeight: '600',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#7b3f2c',
-    borderRadius: 10,
-    marginBottom: 12,
-    paddingHorizontal: 12,
-  },
-  iconInput: {
-    marginRight: 10,
+    marginTop: 12,
+    letterSpacing: 1.2,
   },
   input: {
-    flex: 1,
+    backgroundColor: '#8e0c0c',
     color: '#fff',
-    paddingVertical: 14,
+    fontSize: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#fff9ea',
+    marginBottom: 8,
+  },
+  dateText: {
+    color: '#fff9ea',
     fontSize: 16,
   },
-  errorText: {
-    color: '#fff',
-    backgroundColor: '#c62828',
-    padding: 6,
-    borderRadius: 6,
-    marginBottom: 10,
-    textAlign: 'center',
-    fontSize: 13,
-  },
-  selectorBox: {
-    backgroundColor: '#7b3f2c',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    marginBottom: 25,
-  },
-  text: {
-    color: '#f5e8e1',
-    fontSize: 16,
-  },
-  botonPersonalizado: {
-    backgroundColor: '#5a2d0c',
-    paddingVertical: 16,
+  boton: {
+    marginTop: 16,
+    marginBottom: 40,
+    backgroundColor: '#fff',
+    paddingVertical: 20,
     borderRadius: 10,
     alignItems: 'center',
+    alignSelf: 'center',
+    width: 320,
   },
-  textoBoton: {
-    color: '#fff',
-    fontWeight: 'bold',
+  botonTexto: {
+    color: '#8e0c0c',
     fontSize: 20,
+    fontWeight: 'bold',
+  },
+  fideos: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 250,
+    height: 250,
+    zIndex: 0,
+  },
+  superpuesto: {
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.5,
   },
 });
