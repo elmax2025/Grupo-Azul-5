@@ -1,150 +1,134 @@
-import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ImageBackground,
+  StatusBar,
+  Dimensions,
+  Platform,
+} from 'react-native';
 
-export default function Contraseñaperdida() {
-  const [email, setEmail] = useState('');
-  const [mensajeError, setMensajeError] = useState('');
-  const [mostrarError, setMostrarError] = useState(false);
+const { height } = Dimensions.get('window');
 
-  const manejarPresion = () => {
-    if (!email.trim()) {
-      setMensajeError('El Email es incorrecto');
-      setMostrarError(true);
-    } else {
-      setMensajeError('El Email es incorrecto');
-      setMostrarError(true);
-    }
-  };
-
+const PasswordRecoveryScreen = () => {
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.navbar}>
-        <Text style={styles.navbarTitle}>Recuperar Contraseña</Text>
-      </View>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff9ea" />
+      <View style={styles.topBar} />
 
-      <View style={styles.innerContainer}>
-        <Text style={styles.titulo}>¿Olvidaste la contraseña?</Text>
-        <View style={styles.separator} />
-        <Text style={styles.subtitulo}>Ingresá tu email para recibir una nueva contraseña</Text>
+      <View style={styles.content}>
+        <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit>
+          ¿Olvidaste la contraseña?
+        </Text>
+        <Text style={styles.subtitle}>Generá una nueva.</Text>
 
-        <Text style={styles.label}>EMAIL:</Text>
-        <View style={styles.inputContainer}>
-          <Ionicons name="mail-outline" size={24} color="#f5e8e1" style={styles.iconInput} />
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor="#f5e8e1"
-            onChangeText={text => setEmail(text)}
-            value={email}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-        </View>
+        <Text style={styles.label}>EMAIL</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="hola@sitioincreible.com.ar"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          placeholderTextColor="#BFBFBF"
+        />
 
-        {mostrarError && (
-          <Text style={styles.errorText}>{mensajeError}</Text>
-        )}
-
-        <TouchableOpacity style={styles.botonPersonalizado} onPress={manejarPresion} activeOpacity={0.7}>
-          <Text style={styles.textoBoton}>Enviar</Text>
+        <TouchableOpacity style={styles.button}>
+          <Text style={styles.buttonText}>Enviar</Text>
         </TouchableOpacity>
       </View>
 
-      <StatusBar style="light" />
-    </SafeAreaView>
+      <ImageBackground
+        source={require('../../assets/foto contraseña olvidada.png')}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      />
+    </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f7931e',
+    backgroundColor: '#fff9ea',
+    justifyContent: 'flex-start',
   },
-  navbar: {
-    backgroundColor: '#7b3f2c',
-    padding: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 4,
+  topBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+    backgroundColor: '#8e0c0c',
+    borderBottomWidth: 3,
+    borderBottomColor: '#000',
+    zIndex: 2,
   },
-  navbarTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  innerContainer: {
+  content: {
     flex: 1,
-    padding: 24,
-    justifyContent: 'center',
+    paddingHorizontal: 25,
+    paddingTop: 110, // Restaurado
+    paddingBottom: height * 0.25, // Restaurado
+    zIndex: 1,
   },
-  titulo: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-    marginBottom: 10,
+  title: {
+    fontSize: 38,
+    lineHeight: 52,
+    fontWeight: '600',
+    color: '#8e0c0c',
+    fontFamily: Platform.select({
+      ios: 'Snell Roundhand',
+      android: 'cursive',
+      default: 'serif',
+    }),
+    marginBottom: 6,
   },
-  separator: {
-    height: 3,
-    backgroundColor: '#fff',
-    width: 70,
-    alignSelf: 'center',
-    marginBottom: 20,
-    borderRadius: 6,
-  },
-  subtitulo: {
-    fontSize: 16,
-    color: '#fff',
-    textAlign: 'center',
+  subtitle: {
+    fontSize: 18,
+    color: '#8e0c0c',
     marginBottom: 30,
+    fontWeight: '500',
+    textAlign: 'center',
   },
   label: {
-    fontSize: 14,
-    color: '#fff',
+    fontSize: 13,
+    color: '#8e0c0c',
     marginBottom: 8,
     fontWeight: '600',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#7b3f2c',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    marginBottom: 15,
-  },
-  iconInput: {
-    marginRight: 10,
+    letterSpacing: 1,
   },
   input: {
-    flex: 1,
-    color: '#f5e8e1',
+    height: 58,
+    borderWidth: 1.2,
+    borderColor: '#8e0c0c',
+    borderRadius: 0, // ✔️ Esquinas rectas
+    paddingHorizontal: 14,
+    backgroundColor: '#000',
+    marginBottom: 25,
+    color: '#fff',
     fontSize: 16,
-    paddingVertical: 14,
   },
-  errorText: {
-    color: '#fff',
-    backgroundColor: '#c62828',
-    padding: 12,
-    borderRadius: 10,
-    textAlign: 'center',
-    marginVertical: 10,
-    fontSize: 14,
-  },
-  botonPersonalizado: {
-    backgroundColor: '#5a2d0c',
-    paddingVertical: 16,
-    borderRadius: 12,
+  button: {
+    backgroundColor: '#8e0c0c',
+    height: 58,
+    borderRadius: 0, // ✔️ Esquinas rectas
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 10,
   },
-  textoBoton: {
+  buttonText: {
     color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 20,
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  backgroundImage: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: '100%',
+    height: height * 0.5,
+    zIndex: 0,
   },
 });
+
+export default PasswordRecoveryScreen;
