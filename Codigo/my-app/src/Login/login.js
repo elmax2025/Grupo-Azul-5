@@ -1,98 +1,81 @@
-import { StatusBar } from 'expo-status-bar';
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  SafeAreaView,
+  Platform,
+  StatusBar,
+  Image,
+  Dimensions,
+} from 'react-native';
 
-export default function Login() {
-  const [usuario, setUsuario] = useState('');
+const { width } = Dimensions.get('window');
+
+export default function Login({ navigation }) {
+  const [nombre, setNombre] = useState('');
   const [contrasena, setContrasena] = useState('');
-  const [mensajeError, setMensajeError] = useState('');
-  const [mostrarError, setMostrarError] = useState(false);
-  const [mostrarPass, setMostrarPass] = useState(false);
-  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    let timeout;
-    if (mostrarError) {
-      timeout = setTimeout(() => setMostrarError(false), 3000);
-    }
-    return () => clearTimeout(timeout);
-  }, [mostrarError]);
-
-  const manejarPresion = () => {
-    if (!usuario.trim() || !contrasena.trim()) {
-      setMensajeError('El Usuario o Contraseña son incorrectos');
-      setMostrarError(true);
-      return;
-    }
-    setMostrarError(false);
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      alert('Login exitoso (simulado)');
-    }, 2000);
+  const handleLogin = () => {
+    Alert.alert('Datos ingresados', `Nombre: ${nombre}\nContraseña: ${contrasena}`);
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.navbar}>
-        <Text style={styles.navbarTitle}>Login</Text>
-      </View>
-      <View style={styles.container}>
-        <Text style={styles.texto2}>ACCEDÉ:</Text>
+      <View style={styles.topBar} />
 
-        <View style={styles.barritaDecorativa} />
-
+      <View style={styles.middleSection}>
+        <Text style={styles.ingresar}>Ingresar</Text>
         <Text style={styles.subtitulo}>Iniciá sesión para continuar</Text>
 
-        <Text style={styles.texto1}>EMAIL:</Text>
-        <View style={styles.inputContainer}>
-          <Ionicons name="mail-outline" size={24} color="#f5e8e1" style={styles.iconInput} />
+        <View style={styles.form}>
+          <Text style={styles.label}>NOMBRE</Text>
           <TextInput
             style={styles.input}
-            placeholder="Email"
-            onChangeText={text => setUsuario(text)}
-            value={usuario}
-            placeholderTextColor="#f5e8e1"
-            keyboardType="email-address"
-            autoCapitalize="none"
+            placeholder="Martín Pérez"
+            placeholderTextColor="#fff9ea"
+            value={nombre}
+            onChangeText={setNombre}
           />
-        </View>
 
-        <Text style={styles.texto1}>CONTRASEÑA:</Text>
-        <View style={styles.passwordContainer}>
-          <Ionicons name="lock-closed-outline" size={24} color="#f5e8e1" style={styles.iconInput} />
+          <Text style={styles.label}>CONTRASEÑA</Text>
           <TextInput
-            style={[styles.passwordInput, { paddingRight: 40 }]}
-            placeholder="Contraseña"
-            secureTextEntry={!mostrarPass}
-            onChangeText={text => setContrasena(text)}
+            style={styles.input}
+            placeholder="******"
+            placeholderTextColor="#fff9ea"
+            secureTextEntry
             value={contrasena}
-            placeholderTextColor="#f5e8e1"
-            autoCapitalize="none"
+            onChangeText={setContrasena}
           />
-          <TouchableOpacity style={styles.eyeIcon} onPress={() => setMostrarPass(!mostrarPass)}>
-            <Ionicons name={mostrarPass ? 'eye' : 'eye-off'} size={24} color="#f5e8e1" />
+
+          {/* Ir a recuperar contraseña */}
+          <TouchableOpacity onPress={() => navigation.navigate('Contraseñaperdida')}>
+            <Text style={styles.olvidasteTexto}>¿Olvidaste tu contraseña?</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.boton} onPress={handleLogin}>
+            <Text style={styles.botonTexto}>
+              <Text style={{ color: '#8e0c0c' }}>A</Text>
+              <Text style={{ color: '#000' }}>c</Text>
+              <Text style={{ color: '#8e0c0c' }}>c</Text>
+              <Text style={{ color: '#000' }}>e</Text>
+              <Text style={{ color: '#8e0c0c' }}>d</Text>
+              <Text style={{ color: '#000' }}>e</Text>
+              <Text style={{ color: '#8e0c0c' }}>r</Text>
+            </Text>
           </TouchableOpacity>
         </View>
+      </View>
 
-        {mostrarError && (
-          <View style={styles.errorTextContainer}>
-            <Text style={styles.errorText}>{mensajeError}</Text>
-          </View>
-        )}
-
-        <View style={styles.buttonContainer}>
-          {loading ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <TouchableOpacity style={styles.botonPersonalizado} onPress={manejarPresion} activeOpacity={0.7}>
-              <Text style={styles.textoBoton}>Ingresar</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <StatusBar style="light" />
+      <View style={styles.footer}>
+        <Image
+          source={require('../../assets/chef.png')}
+          style={styles.chef}
+          resizeMode="contain"
+        />
       </View>
     </SafeAreaView>
   );
@@ -101,116 +84,95 @@ export default function Login() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f7931e',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    width: '100%',
   },
-  navbar: {
-    backgroundColor: '#7b3f2c',
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  navbarTitle: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#f7931e',
-    padding: 30,
-    justifyContent: 'center',
-  },
-  texto2: {
-    fontSize: 34,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-    marginBottom: 6,  // espacio reducido para acercar a la barra
-  },
-  barritaDecorativa: {
-    height: 4,
-    width: 100,
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+  topBar: {
+    backgroundColor: '#8e0c0c',
+    height: 40,
+    borderBottomWidth: 4,
+    borderBottomColor: '#000',
+    width: width,
     alignSelf: 'center',
-    marginVertical: 12, // menos espacio para acercar a texto arriba y subtitulo abajo
-    borderRadius: 10,
-    shadowColor: '#fff',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 5,
-    elevation: 5,
+  },
+  middleSection: {
+    flex: 1,
+    backgroundColor: '#fff9ea',
+    width: width,
+    alignSelf: 'center',
+    alignItems: 'center',
+    paddingTop: 20,
+  },
+  ingresar: {
+    fontSize: 48,
+    fontStyle: 'Poppins Bold',
+    fontWeight: '600',
+    color: '#8e0c0c',
+    fontFamily: Platform.select({
+      ios: 'Snell Roundhand',
+      android: 'cursive',
+      default: 'serif',
+    }),
+    marginBottom: 8,
   },
   subtitulo: {
-    fontSize: 16,
-    color: '#fff',
+    fontSize: 18,
+    color: '#000',
     textAlign: 'center',
-    marginBottom: 40,
+    marginBottom: 24,
   },
-  texto1: {
-    fontSize: 16,
+  form: {
+    width: width * 0.9,
+  },
+  label: {
+    fontSize: 14,
     fontWeight: 'bold',
-    color: '#fff',
-    marginTop: 10,
+    color: '#8e0c0c',
     marginBottom: 6,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#7b3f2c',
-    borderRadius: 10,
-    marginBottom: 10,
-    paddingHorizontal: 10,
-  },
-  iconInput: {
-    marginRight: 8,
+    letterSpacing: 1.2,
   },
   input: {
-    flex: 1,
-    paddingVertical: 12,
-    fontSize: 16,
+    backgroundColor: '#8e0c0c',
     color: '#fff',
-  },
-  passwordContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#7b3f2c',
-    borderRadius: 10,
-    marginBottom: 10,
-    paddingHorizontal: 10,
-    position: 'relative',
-  },
-  passwordInput: {
-    flex: 1,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#fff',
-  },
-  eyeIcon: {
-    position: 'absolute',
-    right: 10,
-  },
-  errorTextContainer: {
-    backgroundColor: '#c62828',
-    padding: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
     borderRadius: 8,
-    marginVertical: 10,
+    marginBottom: 20,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#fff9ea',
   },
-  errorText: {
-    color: '#fff',
-    textAlign: 'center',
-    fontSize: 14,
-  },
-  buttonContainer: {
-    marginTop: 10,
-  },
-  botonPersonalizado: {
-    backgroundColor: '#5a2d0c',
-    paddingVertical: 14,
-    borderRadius: 10,
+  boton: {
+    backgroundColor: '#fff',
+    paddingVertical: 16,
+    borderRadius: 8,
     alignItems: 'center',
+    marginTop: 10,
+    width: '100%',
   },
-  textoBoton: {
-    color: '#fff',
-    fontWeight: 'bold',
+  botonTexto: {
     fontSize: 18,
+    fontWeight: 'bold',
+  },
+  olvidasteTexto: {
+    color: '#8e0c0c',
+    textAlign: 'center',
+    marginBottom: 12,
+    fontSize: 14,
+    fontStyle: 'italic',
+    textDecorationLine: 'underline',
+  },
+  footer: {
+    backgroundColor: '#8e0c0c',
+    alignItems: 'center',
+    paddingVertical: 24,
+    borderTopWidth: 4,
+    borderTopColor: '#000',
+    width: width,
+    alignSelf: 'center',
+  },
+  chef: {
+    width: 210,
+    height: 210,
   },
 });
