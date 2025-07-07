@@ -12,11 +12,12 @@ import {
   Image,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useNavigation } from '@react-navigation/native'; 
+import { useNavigation } from '@react-navigation/native';
 
-// Firestore
-import { db } from '../../firebase/config';
-import { collection, addDoc } from 'firebase/firestore';
+// Firebase
+import { auth, db } from '../../firebase/config';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 
 export default function Registro() {
   const navigation = useNavigation();
@@ -32,29 +33,31 @@ export default function Registro() {
     setFechaNacimiento(currentDate);
   };
 
-  const handleRegistro = () => {
+  const handleRegistro = async () => {
     if (!nombre || !email || !contrasena) {
       Alert.alert('Error', 'Por favor completá todos los campos.');
       return;
     }
 
-    const usuariosRef = collection(db, 'usuarios');
-    addDoc(usuariosRef, {
-      nombre,
-      email,
-      contrasena,
-      fechaNacimiento: fechaNacimiento.toISOString()
-    })
-    .then(() => {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, contrasena);
+      const uid = userCredential.user.uid;
+
+      await setDoc(doc(db, 'usuarios', uid), {
+        nombre,
+        email,
+        fechaNacimiento: fechaNacimiento.toISOString(),
+      });
+
       Alert.alert('Registro exitoso');
       setNombre('');
       setEmail('');
       setContrasena('');
       setFechaNacimiento(new Date());
-    })
-    .catch((error) => {
+      navigation.navigate('Login');
+    } catch (error) {
       Alert.alert('Error', error.message);
-    });
+    }
   };
 
   return (
@@ -75,7 +78,6 @@ export default function Registro() {
           </Text>
         </View>
 
-        {/*Botón para ir al Login*/}
         <TouchableOpacity onPress={() => navigation.navigate('Login')}>
           <Text style={[styles.subtitulo, { textDecorationLine: 'underline', color: '#8e0c0c' }]}>
             ¿Ya estás registrado? Iniciá sesión acá.
@@ -141,10 +143,7 @@ export default function Registro() {
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
-    flex: 1,
-    backgroundColor: '#fff9ea',
-  },
+  wrapper: { flex: 1, backgroundColor: '#fff9ea' },
   topBar: {
     backgroundColor: '#8e0c0c',
     height: 80,
@@ -173,8 +172,6 @@ const styles = StyleSheet.create({
     textShadowColor: '#8e0c0c',
     textShadowOffset: { width: 0.7, height: 0.7 },
     textShadowRadius: 0.5,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
   },
   subtitulo: {
     fontSize: 16,
