@@ -12,33 +12,48 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
+import { auth } from '../../firebase/config';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 const { width } = Dimensions.get('window');
 
 export default function Login({ navigation }) {
-  const [nombre, setNombre] = useState('');
+  const [email, setEmail] = useState('');
   const [contrasena, setContrasena] = useState('');
 
-  const handleLogin = () => {
-    Alert.alert('Datos ingresados', `Nombre: ${nombre}\nContraseña: ${contrasena}`);
+  const handleLogin = async () => {
+    if (!email || !contrasena) {
+      Alert.alert('Error', 'Completá todos los campos.');
+      return;
+    }
+
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, contrasena);
+      const user = userCredential.user;
+      Alert.alert('Éxito', `Bienvenido, ${user.email}`);
+      navigation.navigate('Feed'); // 🔁 redirige a Feed
+    } catch (error) {
+      Alert.alert('Error al iniciar sesión', error.message);
+    }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.topBar} />
-
       <View style={styles.middleSection}>
         <Text style={styles.ingresar}>Ingresar</Text>
         <Text style={styles.subtitulo}>Iniciá sesión para continuar</Text>
 
         <View style={styles.form}>
-          <Text style={styles.label}>NOMBRE</Text>
+          <Text style={styles.label}>EMAIL</Text>
           <TextInput
             style={styles.input}
-            placeholder="Martín Pérez"
+            placeholder="hola@sitioincreible.com.ar"
             placeholderTextColor="#fff9ea"
-            value={nombre}
-            onChangeText={setNombre}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={email}
+            onChangeText={setEmail}
           />
 
           <Text style={styles.label}>CONTRASEÑA</Text>
@@ -51,21 +66,12 @@ export default function Login({ navigation }) {
             onChangeText={setContrasena}
           />
 
-          {/* Ir a recuperar contraseña */}
           <TouchableOpacity onPress={() => navigation.navigate('Contraseñaperdida')}>
             <Text style={styles.olvidasteTexto}>¿Olvidaste tu contraseña?</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.boton} onPress={handleLogin}>
-            <Text style={styles.botonTexto}>
-              <Text style={{ color: '#8e0c0c' }}>A</Text>
-              <Text style={{ color: '#000' }}>c</Text>
-              <Text style={{ color: '#8e0c0c' }}>c</Text>
-              <Text style={{ color: '#000' }}>e</Text>
-              <Text style={{ color: '#8e0c0c' }}>d</Text>
-              <Text style={{ color: '#000' }}>e</Text>
-              <Text style={{ color: '#8e0c0c' }}>r</Text>
-            </Text>
+            <Text style={styles.botonTexto}>Acceder</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -105,7 +111,6 @@ const styles = StyleSheet.create({
   },
   ingresar: {
     fontSize: 48,
-    fontStyle: 'Poppins Bold',
     fontWeight: '600',
     color: '#8e0c0c',
     fontFamily: Platform.select({
@@ -153,6 +158,7 @@ const styles = StyleSheet.create({
   botonTexto: {
     fontSize: 18,
     fontWeight: 'bold',
+    color: '#8e0c0c',
   },
   olvidasteTexto: {
     color: '#8e0c0c',
