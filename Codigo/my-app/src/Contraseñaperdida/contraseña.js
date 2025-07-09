@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,44 @@ import {
   StatusBar,
   Dimensions,
   Platform,
+  Alert,
 } from 'react-native';
+
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { auth } from '../../firebase/config';
 
 const { height } = Dimensions.get('window');
 
-const PasswordRecoveryScreen = () => {
+const PasswordRecoveryScreen = ({ navigation }) => {
+  const [email, setEmail] = useState('');
+
+  const handlePasswordReset = async () => {
+    if (!email) {
+      Alert.alert('Error', 'Por favor ingresá tu correo electrónico.');
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email, {
+        url: 'https://spaghetti-e2346.firebaseapp.com/reset-password',
+      });
+      Alert.alert(
+        'Correo enviado',
+        'Te enviamos un correo para restablecer tu contraseña.'
+      );
+      navigation.goBack(); // o navigation.navigate('Login');
+    } catch (error) {
+      console.log(error);
+      let mensaje = 'Ocurrió un error. Verificá el correo.';
+      if (error.code === 'auth/user-not-found') {
+        mensaje = 'No se encontró un usuario con ese correo.';
+      } else if (error.code === 'auth/invalid-email') {
+        mensaje = 'Correo electrónico inválido.';
+      }
+      Alert.alert('Error', mensaje);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff9ea" />
@@ -32,9 +65,11 @@ const PasswordRecoveryScreen = () => {
           keyboardType="email-address"
           autoCapitalize="none"
           placeholderTextColor="#BFBFBF"
+          value={email}
+          onChangeText={setEmail}
         />
 
-        <TouchableOpacity style={styles.button}>
+        <TouchableOpacity style={styles.button} onPress={handlePasswordReset}>
           <Text style={styles.buttonText}>Enviar</Text>
         </TouchableOpacity>
       </View>
@@ -68,8 +103,8 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 25,
-    paddingTop: 110, // Restaurado
-    paddingBottom: height * 0.25, // Restaurado
+    paddingTop: 110,
+    paddingBottom: height * 0.25,
     zIndex: 1,
   },
   title: {
@@ -102,7 +137,7 @@ const styles = StyleSheet.create({
     height: 58,
     borderWidth: 1.2,
     borderColor: '#8e0c0c',
-    borderRadius: 0, // ✔️ Esquinas rectas
+    borderRadius: 0,
     paddingHorizontal: 14,
     backgroundColor: '#000',
     marginBottom: 25,
@@ -112,7 +147,7 @@ const styles = StyleSheet.create({
   button: {
     backgroundColor: '#8e0c0c',
     height: 58,
-    borderRadius: 0, // ✔️ Esquinas rectas
+    borderRadius: 0,
     justifyContent: 'center',
     alignItems: 'center',
   },
