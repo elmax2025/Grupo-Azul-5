@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import {
   View,
@@ -8,6 +9,9 @@ import {
   Image,
   SafeAreaView,
   StatusBar,
+  Modal,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -40,8 +44,136 @@ const PostCard = ({ post, onLike, onTag, onComment, onDelete }) => (
   </View>
 );
 
-// Pantalla Principal (Feed)
+// Modal para Crear Publicación
+const CreatePostModal = ({ visible, onClose, onCreatePost }) => {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+
+  const handleCreatePost = () => {
+    if (!title.trim() || !description.trim()) {
+      Alert.alert('Error', 'Por favor completa todos los campos');
+      return;
+    }
+
+    const newPost = {
+      id: Date.now(),
+      title: title.trim(),
+      description: description.trim(),
+      image: imageUrl.trim() || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=300&h=200&fit=crop',
+      isLiked: false,
+    };
+
+    onCreatePost(newPost);
+    
+    // Limpiar campos
+    setTitle('');
+    setDescription('');
+    setImageUrl('');
+    onClose();
+  };
+
+  const handleClose = () => {
+    setTitle('');
+    setDescription('');
+    setImageUrl('');
+    onClose();
+  };
+
+  return (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={visible}
+      onRequestClose={handleClose}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          {/* Header del Modal */}
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={handleClose} style={styles.modalHeaderButton}>
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Nueva Publicación</Text>
+            <TouchableOpacity onPress={handleCreatePost} style={styles.modalHeaderButton}>
+              <Text style={styles.publishButton}>Publicar</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Contenido del Modal */}
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            {/* Campo Título */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Título</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Escribe el título de tu publicación..."
+                value={title}
+                onChangeText={setTitle}
+                maxLength={100}
+              />
+            </View>
+
+            {/* Campo Descripción */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Descripción</Text>
+              <TextInput
+                style={[styles.textInput, styles.textArea]}
+                placeholder="Describe tu publicación..."
+                value={description}
+                onChangeText={setDescription}
+                multiline={true}
+                numberOfLines={4}
+                maxLength={500}
+              />
+            </View>
+
+            {/* Campo URL de Imagen (Opcional) */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>URL de Imagen (Opcional)</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="https://ejemplo.com/imagen.jpg"
+                value={imageUrl}
+                onChangeText={setImageUrl}
+                keyboardType="url"
+              />
+              <Text style={styles.helpText}>
+                Si no agregas una imagen, se usará una imagen por defecto
+              </Text>
+            </View>
+
+            {/* Preview de la imagen */}
+            {imageUrl.trim() && (
+              <View style={styles.imagePreviewContainer}>
+                <Text style={styles.inputLabel}>Vista Previa</Text>
+                <Image 
+                  source={{ uri: imageUrl }} 
+                  style={styles.imagePreview}
+                  onError={() => setImageUrl('')}
+                />
+              </View>
+            )}
+          </ScrollView>
+
+          {/* Botones de acción */}
+          <View style={styles.modalActions}>
+            <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.createButton} onPress={handleCreatePost}>
+              <Text style={styles.createButtonText}>Crear Publicación</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// Pantalla Principal (Feed) con botón de crear
 const FeedScreen = ({ onNavigateToProfile }) => {
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [posts, setPosts] = useState([
     {
       id: 1,
@@ -91,6 +223,11 @@ const FeedScreen = ({ onNavigateToProfile }) => {
     setPosts(posts.filter(post => post.id !== postId));
   };
 
+  const handleCreatePost = (newPost) => {
+    setPosts([newPost, ...posts]); // Agregar al inicio de la lista
+    Alert.alert('¡Éxito!', 'Tu publicación ha sido creada');
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="#000" barStyle="light-content" />
@@ -133,6 +270,24 @@ const FeedScreen = ({ onNavigateToProfile }) => {
           />
         ))}
       </ScrollView>
+
+      {/* Botón Flotante para Crear Publicación */}
+      <TouchableOpacity 
+        style={styles.floatingButton} 
+        onPress={() => setShowCreateModal(true)}
+      >
+        <View style={styles.floatingButtonContent}>
+          <Ionicons name="add" size={28} color="#FFF" />
+          <Text style={styles.floatingButtonText}>Crear</Text>
+        </View>
+      </TouchableOpacity>
+
+      {/* Modal para Crear Publicación */}
+      <CreatePostModal
+        visible={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreatePost={handleCreatePost}
+      />
 
       {/* Bottom Wave */}
       <View style={styles.bottomWave} />
@@ -189,13 +344,15 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 16,
     color: '#8B0000',
-    fontWeight: '500',
+    fontWeight: '5000',
   },
+
   activeTabText: {
     color: '#FFA500',
   },
   scrollView: {
     flex: 1,
+    marginBottom: 80, // Espacio para el botón flotante
   },
   postCard: {
     flexDirection: 'row',
@@ -237,12 +394,145 @@ const styles = StyleSheet.create({
   actionButton: {
     padding: 5,
   },
-  bottomWave: {
-    height: 20,
+  floatingButton: {
+    position: 'absolute',
+    bottom: 100,
+    right: 20,
     backgroundColor: '#8B0000',
+    borderRadius: 30,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  floatingButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  floatingButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  // Estilos del Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#FFF8DC',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    maxHeight: '90%',
+    minHeight: '70%',
   },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  modalHeaderButton: {
+    padding: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  publishButton: {
+    color: '#8B0000',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  inputContainer: {
+    marginVertical: 15,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: '#FFF',
+    color: '#333',
+  },
+  textArea: {
+    height: 100,
+    textAlignVertical: 'top',
+  },
+  helpText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 5,
+  },
+  imagePreviewContainer: {
+    marginVertical: 15,
+  },
+  imagePreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    backgroundColor: '#F0F0F0',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+    gap: 15,
+  },
+  cancelButton: {
+    flex: 1,
+    backgroundColor: '#F5F5F5',
+    paddingVertical: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  createButton: {
+    flex: 1,
+    backgroundColor: '#8B0000',
+    paddingVertical: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  createButtonText: {
+    color: '#FFA500',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  bottomWave: {
+  height: 40,
+  backgroundColor: '#8B0000',
+  borderTopLeftRadius: 5,
+  borderTopRightRadius: 5,
+},
 });
 
 export default FeedScreen;
+
