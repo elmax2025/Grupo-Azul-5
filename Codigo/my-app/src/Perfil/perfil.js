@@ -12,36 +12,32 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 // Componente de Post
-const PostCard = ({ post, onLike, onTag, onComment, onDelete }) => (
+const PostCard = ({ post, onLike, onTag, onComment }) => (
   <View style={styles.postCard}>
+    <Text style={styles.userName}>Nombre del Usuario</Text>
+    <Text style={styles.postTitle}>{post.title}</Text>
+    <Text style={styles.postDescription}>{post.description}</Text>
     <Image source={{ uri: post.image }} style={styles.postImage} />
-    <View style={styles.postContent}>
-      <Text style={styles.postTitle}>{post.title}</Text>
-      <Text style={styles.postDescription}>{post.description}</Text>
-      <View style={styles.postActions}>
-        <TouchableOpacity onPress={() => onLike(post.id)} style={styles.actionButton}>
-          <Ionicons 
-            name={post.isLiked ? "heart" : "heart-outline"} 
-            size={24} 
-            color={post.isLiked ? "#8B0000" : "#666"} 
-          />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => onTag(post.id)} style={styles.actionButton}>
-          <Ionicons name="pricetag-outline" size={24} color="#666" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => onComment(post.id)} style={styles.actionButton}>
-          <Ionicons name="chatbubble-outline" size={24} color="#666" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => onDelete(post.id)} style={styles.actionButton}>
-          <Ionicons name="trash-outline" size={24} color="#666" />
-        </TouchableOpacity>
-      </View>
+    <View style={styles.postActions}>
+      <TouchableOpacity onPress={() => onLike(post.id)} style={styles.actionButton}>
+        <Ionicons 
+          name={post.isLiked ? "heart" : "heart-outline"} 
+          size={24} 
+          color={post.isLiked ? "#8B0000" : "#666"} 
+        />
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => onTag(post.id)} style={styles.actionButton}>
+        <Ionicons name="bookmark-outline" size={24} color="#666" />
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => onComment(post.id)} style={styles.actionButton}>
+        <Ionicons name="chatbubble-outline" size={24} color="#666" />
+      </TouchableOpacity>
     </View>
   </View>
 );
 
 // Pantalla de Perfil
-const ProfileScreen = ({ onNavigateBack }) => {
+const ProfileScreen = ({ onNavigateBack }) =>{
   const [posts, setPosts] = useState([
     {
       id: 1,
@@ -137,14 +133,16 @@ const ProfileScreen = ({ onNavigateBack }) => {
             onLike={handleLike}
             onTag={handleTag}
             onComment={handleComment}
-            onDelete={handleDelete}
           />
         ))}
       </ScrollView>
 
       {/* Floating Add Button */}
       <TouchableOpacity style={styles.floatingButton}>
-        <Ionicons name="create-outline" size={24} color="#FFA500" />
+        <View style={styles.floatingButtonContent}>
+          <Ionicons name="add" size={16} color="#FFF" />
+          <Text style={styles.floatingButtonText}>Crear</Text>
+        </View>
       </TouchableOpacity>
 
       {/* Bottom Wave */}
@@ -152,6 +150,8 @@ const ProfileScreen = ({ onNavigateBack }) => {
     </SafeAreaView>
   );
 };
+
+
 
 const styles = StyleSheet.create({
   container: {
@@ -235,21 +235,28 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   postCard: {
-    flexDirection: 'row',
     backgroundColor: '#FFF',
     marginHorizontal: 20,
     marginVertical: 8,
     borderRadius: 12,
-    overflow: 'hidden',
+    padding: 15,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
+  userName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
   postImage: {
-    width: 120,
-    height: 120,
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    marginBottom: 10,
   },
   postContent: {
     flex: 1,
@@ -269,7 +276,9 @@ const styles = StyleSheet.create({
   },
   postActions: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'flex-start',
+    gap: 20,
+    marginTop: 10,
   },
   actionButton: {
     padding: 5,
@@ -278,17 +287,28 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 100,
     right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
     backgroundColor: '#8B0000',
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 25,
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  floatingButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  floatingButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   bottomWave: {
     height: 20,
