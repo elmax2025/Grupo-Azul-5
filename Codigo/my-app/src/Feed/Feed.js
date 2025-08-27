@@ -16,30 +16,36 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 // Componente de Post
-const PostCard = ({ post, onLike, onTag, onComment, onDelete }) => (
+const PostCard = ({ post, onLike, onSave, onComment }) => (
   <View style={styles.postCard}>
-    <Image source={{ uri: post.image }} style={styles.postImage} />
+    <View style={styles.postHeader}>
+      <Text style={styles.userName}>{post.userName}</Text>
+    </View>
     <View style={styles.postContent}>
       <Text style={styles.postTitle}>{post.title}</Text>
       <Text style={styles.postDescription}>{post.description}</Text>
-      <View style={styles.postActions}>
-        <TouchableOpacity onPress={() => onLike(post.id)} style={styles.actionButton}>
-          <Ionicons 
-            name={post.isLiked ? "heart" : "heart-outline"} 
-            size={24} 
-            color={post.isLiked ? "#8B0000" : "#666"} 
-          />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => onTag(post.id)} style={styles.actionButton}>
-          <Ionicons name="pricetag-outline" size={24} color="#666" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => onComment(post.id)} style={styles.actionButton}>
-          <Ionicons name="chatbubble-outline" size={24} color="#666" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => onDelete(post.id)} style={styles.actionButton}>
-          <Ionicons name="trash-outline" size={24} color="#666" />
-        </TouchableOpacity>
-      </View>
+    </View>
+    {post.image && (
+      <Image source={{ uri: post.image }} style={styles.postImage} />
+    )}
+    <View style={styles.postActions}>
+      <TouchableOpacity onPress={() => onLike(post.id)} style={styles.actionButton}>
+        <Ionicons 
+          name={post.isLiked ? "heart" : "heart-outline"} 
+          size={24} 
+          color={post.isLiked ? "#8B0000" : "#666"} 
+        />
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => onSave(post.id)} style={styles.actionButton}>
+        <Ionicons 
+          name={post.isSaved ? "bookmark" : "bookmark-outline"} 
+          size={24} 
+          color={post.isSaved ? "#8B0000" : "#666"} 
+        />
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => onComment(post.id)} style={styles.actionButton}>
+        <Ionicons name="chatbubble-outline" size={24} color="#666" />
+      </TouchableOpacity>
     </View>
   </View>
 );
@@ -58,10 +64,12 @@ const CreatePostModal = ({ visible, onClose, onCreatePost }) => {
 
     const newPost = {
       id: Date.now(),
+      userName: '@nuevo_usuario', // Usuario por defecto para posts nuevos
       title: title.trim(),
       description: description.trim(),
-      image: imageUrl.trim() || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=300&h=200&fit=crop',
+      image: imageUrl.trim() || null, // null si no hay imagen
       isLiked: false,
+      isSaved: false,
     };
 
     onCreatePost(newPost);
@@ -177,31 +185,39 @@ const FeedScreen = ({ onNavigateToProfile }) => {
   const [posts, setPosts] = useState([
     {
       id: 1,
-      title: 'Titulo',
-      description: 'Descripcion',
+      userName: '@usuario1',
+      title: 'Mi primer plato del día',
+      description: 'Desayuno delicioso con ingredientes frescos',
       image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=300&h=200&fit=crop',
       isLiked: false,
+      isSaved: false,
     },
     {
       id: 2,
-      title: 'Titulo',
-      description: 'Descripcion',
-      image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=300&h=200&fit=crop',
+      userName: '@chef_maria',
+      title: 'Receta secreta de la abuela',
+      description: 'Una receta familiar que ha pasado de generación en generación. Los secretos están en los ingredientes locales y el tiempo de cocción.',
+      image: null, // Post sin imagen
       isLiked: true,
+      isSaved: false,
     },
     {
       id: 3,
-      title: 'Titulo',
-      description: 'Descripcion',
+      userName: '@foodlover',
+      title: 'Cena romántica perfecta',
+      description: 'La combinación ideal para una velada especial',
       image: 'https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=300&h=200&fit=crop',
       isLiked: false,
+      isSaved: true,
     },
     {
       id: 4,
-      title: 'Titulo',
-      description: 'Descripcion',
-      image: 'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=300&h=200&fit=crop',
+      userName: '@cocina_casera',
+      title: 'Tips para cocinar en casa',
+      description: 'Algunos consejos que he aprendido después de años cocinando. Lo más importante es usar ingredientes de calidad y cocinar con amor.',
+      image: null, // Post sin imagen
       isLiked: false,
+      isSaved: false,
     },
   ]);
 
@@ -211,16 +227,18 @@ const FeedScreen = ({ onNavigateToProfile }) => {
     ));
   };
 
+  const handleSave = (postId) => {
+    setPosts(posts.map(post => 
+      post.id === postId ? { ...post, isSaved: !post.isSaved } : post
+    ));
+  };
+
   const handleTag = (postId) => {
     console.log('Tag post:', postId);
   };
 
   const handleComment = (postId) => {
     console.log('Comment on post:', postId);
-  };
-
-  const handleDelete = (postId) => {
-    setPosts(posts.filter(post => post.id !== postId));
   };
 
   const handleCreatePost = (newPost) => {
@@ -264,20 +282,19 @@ const FeedScreen = ({ onNavigateToProfile }) => {
             key={post.id}
             post={post}
             onLike={handleLike}
-            onTag={handleTag}
+            onSave={handleSave}
             onComment={handleComment}
-            onDelete={handleDelete}
           />
         ))}
       </ScrollView>
 
-      {/* Botón Flotante para Crear Publicación */}
+      {/* Botón Flotante para Crear Publicación con imagen personalizada */}
       <TouchableOpacity 
         style={styles.floatingButton} 
         onPress={() => setShowCreateModal(true)}
       >
         <View style={styles.floatingButtonContent}>
-          <Ionicons name="add" size={28} color="#FFF" />
+          <Ionicons name="add" size={16} color="#FFF" />
           <Text style={styles.floatingButtonText}>Crear</Text>
         </View>
       </TouchableOpacity>
@@ -344,9 +361,8 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 16,
     color: '#8B0000',
-    fontWeight: '5000',
+    fontWeight: '500',
   },
-
   activeTabText: {
     color: '#FFA500',
   },
@@ -355,7 +371,6 @@ const styles = StyleSheet.create({
     marginBottom: 80, // Espacio para el botón flotante
   },
   postCard: {
-    flexDirection: 'row',
     backgroundColor: '#FFF',
     marginHorizontal: 20,
     marginVertical: 8,
@@ -367,14 +382,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  postImage: {
-    width: 120,
-    height: 120,
+  postHeader: {
+    padding: 15,
+    paddingBottom: 0,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#8B0000',
+    marginBottom: 8,
   },
   postContent: {
-    flex: 1,
-    padding: 15,
-    justifyContent: 'space-between',
+    paddingHorizontal: 15,
+    paddingBottom: 10,
   },
   postTitle: {
     fontSize: 18,
@@ -385,38 +405,52 @@ const styles = StyleSheet.create({
   postDescription: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 10,
+    lineHeight: 20,
+  },
+  postImage: {
+    width: '100%',
+    height: 250,
+    marginVertical: 10,
   },
   postActions: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+    gap: 20,
   },
   actionButton: {
     padding: 5,
   },
   floatingButton: {
-    position: 'absolute',
-    bottom: 100,
-    right: 20,
-    backgroundColor: '#8B0000',
-    borderRadius: 30,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  floatingButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
+  position: 'absolute',
+  bottom: 100,
+  right: 20,
+  backgroundColor: '#8B0000',
+  paddingHorizontal: 16,
+  paddingVertical: 12,
+  borderRadius: 25,
+  elevation: 8,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 8,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+
+floatingButtonContent: {
+  flexDirection: 'row',        // Coloca los elementos en fila horizontal
+  alignItems: 'center',        // Centra verticalmente
+  justifyContent: 'center',    // Centra horizontalmente (opcional)
+  gap: 6,                      // Espacio entre el ícono y el texto (opcional)
+},
+
   floatingButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
+  color: '#ffffffff',
+  fontSize: 16,
+  fontWeight: 'bold',
   },
   // Estilos del Modal
   modalOverlay: {
@@ -527,11 +561,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   bottomWave: {
-  height: 40,
-  backgroundColor: '#8B0000',
-  borderTopLeftRadius: 5,
-  borderTopRightRadius: 5,
-},
+    height: 20,
+    backgroundColor: '#8B0000',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
 });
 
 export default FeedScreen;
