@@ -253,7 +253,7 @@ const FeedScreen = ({ onNavigateToProfile }) => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onNavigateToProfile} style={styles.headerButton}>
-          <Ionicons name="person-circle-outline" size={32} color="#fff" />
+          <Ionicons name="person-circle-outline" size={32} color="#8B0000" />
         </TouchableOpacity>
         
         <View style={styles.headerCenter}>
@@ -261,7 +261,7 @@ const FeedScreen = ({ onNavigateToProfile }) => {
         </View>
         
         <TouchableOpacity style={styles.headerButton}>
-          <Ionicons name="ellipsis-horizontal" size={24} color="#fff" />
+          <Ionicons name="ellipsis-horizontal" size={24} color="#8B0000"   />
         </TouchableOpacity>
       </View>
 
@@ -319,22 +319,24 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
     alignItems: 'center',
-    backgroundColor: '#000',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    backgroundColor: '#000000ff',
+    paddingHorizontal: 10,
+    paddingVertical: 1,
   },
   headerButton: {
-    padding: 5,
+    padding: 10,
+    paddingVertical: 35,
   },
   headerCenter: {
     backgroundColor: '#FFA500',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    right: 4,
+    width: 35,
+    height: 35,
+    borderRadius: 80,
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: "center",
   },
   headerLogo: {
     fontSize: 24,
@@ -346,6 +348,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF8DC',
     paddingHorizontal: 20,
     paddingVertical: 10,
+    paddingBottom: 10,
   },
   tab: {
     flex: 1,
@@ -561,12 +564,13 @@ floatingButtonContent: {
     fontWeight: 'bold',
   },
   bottomWave: {
-    height: 20,
+    height: 50,
     backgroundColor: '#8B0000',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
   },
 });
 
 export default FeedScreen;
+
 
