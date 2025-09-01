@@ -154,8 +154,8 @@ const EditProfileModal = ({ visible, onClose, onSave, currentProfile }) => {
   );
 };
 
-// Pantalla de Perfil
-const ProfileScreen = ({ onNavigateBack }) => {
+// Pantalla de Perfil MODIFICADA para React Navigation
+const ProfileScreen = ({ navigation }) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [profile, setProfile] = useState({
     name: 'Nombre',
@@ -218,9 +218,9 @@ const ProfileScreen = ({ onNavigateBack }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="#000" barStyle="light-content" />
       
-      {/* Header */}
+      {/* Header MODIFICADO - usa navigation.goBack() */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onNavigateBack} style={styles.headerButton}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         
