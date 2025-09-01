@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import {
   View,
@@ -180,7 +179,7 @@ const CreatePostModal = ({ visible, onClose, onCreatePost }) => {
 };
 
 // Pantalla Principal (Feed) con botón de crear
-const FeedScreen = ({ onNavigateToProfile }) => {
+const FeedScreen = ({ navigation }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [posts, setPosts] = useState([
     {
@@ -246,13 +245,19 @@ const FeedScreen = ({ onNavigateToProfile }) => {
     Alert.alert('¡Éxito!', 'Tu publicación ha sido creada');
   };
 
+  // Función para navegar a la pantalla de Perfil
+  const handleNavigateToProfile = () => {
+    // Asegúrate de que 'Perfil' coincida con el nombre de tu pantalla de perfil
+    navigation.navigate('Perfil');
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="#000" barStyle="light-content" />
       
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onNavigateToProfile} style={styles.headerButton}>
+        <TouchableOpacity onPress={handleNavigateToProfile} style={styles.headerButton}>
           <Ionicons name="person-circle-outline" size={32} color="#8B0000" />
         </TouchableOpacity>
         
@@ -572,5 +577,3 @@ floatingButtonContent: {
 });
 
 export default FeedScreen;
-
-
