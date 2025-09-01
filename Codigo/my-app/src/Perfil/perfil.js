@@ -8,6 +8,9 @@ import {
   Image,
   SafeAreaView,
   StatusBar,
+  Modal,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -36,8 +39,131 @@ const PostCard = ({ post, onLike, onTag, onComment }) => (
   </View>
 );
 
+// Modal para Editar Perfil
+const EditProfileModal = ({ visible, onClose, onSave, currentProfile }) => {
+  const [name, setName] = useState(currentProfile.name);
+  const [description, setDescription] = useState(currentProfile.description);
+  const [avatar, setAvatar] = useState(currentProfile.avatar);
+
+  const handleSave = () => {
+    if (!name.trim()) {
+      Alert.alert('Error', 'Por favor ingresa tu nombre');
+      return;
+    }
+
+    onSave({
+      name: name.trim(),
+      description: description.trim(),
+      avatar: avatar.trim()
+    });
+    
+    onClose();
+  };
+
+  const handleClose = () => {
+    setName(currentProfile.name);
+    setDescription(currentProfile.description);
+    setAvatar(currentProfile.avatar);
+    onClose();
+  };
+
+  return (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={visible}
+      onRequestClose={handleClose}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          {/* Header del Modal */}
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={handleClose} style={styles.modalHeaderButton}>
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Editar Perfil</Text>
+            <TouchableOpacity onPress={handleSave} style={styles.modalHeaderButton}>
+              <Text style={styles.saveButton}>Guardar</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Contenido del Modal */}
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            {/* Avatar Preview */}
+            <View style={styles.avatarPreviewContainer}>
+              <View style={styles.profileAvatar}>
+                <Ionicons name="person" size={40} color="#8B0000" />
+              </View>
+              <Text style={styles.avatarHelpText}>Tu foto de perfil</Text>
+            </View>
+
+            {/* Campo Nombre */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Nombre</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Ingresa tu nombre..."
+                value={name}
+                onChangeText={setName}
+                maxLength={50}
+              />
+            </View>
+
+            {/* Campo Descripción */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Descripción</Text>
+              <TextInput
+                style={[styles.textInput, styles.textArea]}
+                placeholder="Describe quién eres..."
+                value={description}
+                onChangeText={setDescription}
+                multiline={true}
+                numberOfLines={3}
+                maxLength={150}
+              />
+            </View>
+
+            {/* Campo URL de Avatar (Opcional) */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>URL de Avatar (Opcional)</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="https://ejemplo.com/avatar.jpg"
+                value={avatar}
+                onChangeText={setAvatar}
+                keyboardType="url"
+              />
+              <Text style={styles.helpText}>
+                Si no agregas una URL, se usará el avatar por defecto
+              </Text>
+            </View>
+          </ScrollView>
+
+          {/* Botones de acción */}
+          <View style={styles.modalActions}>
+            <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.saveProfileButton} onPress={handleSave}>
+              <Text style={styles.saveProfileButtonText}>Guardar Cambios</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
 // Pantalla de Perfil
-const ProfileScreen = ({ onNavigateBack }) =>{
+const ProfileScreen = ({ onNavigateBack }) => {
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [profile, setProfile] = useState({
+    name: 'Nombre',
+    description: 'Descripcion',
+    joinDate: 'Se unio en enero del 2020',
+    avatar: ''
+  });
+  
   const [posts, setPosts] = useState([
     {
       id: 1,
@@ -80,6 +206,14 @@ const ProfileScreen = ({ onNavigateBack }) =>{
     setPosts(posts.filter(post => post.id !== postId));
   };
 
+  const handleSaveProfile = (updatedProfile) => {
+    setProfile({
+      ...profile,
+      ...updatedProfile
+    });
+    Alert.alert('¡Éxito!', 'Tu perfil ha sido actualizado');
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="#000" barStyle="light-content" />
@@ -107,11 +241,14 @@ const ProfileScreen = ({ onNavigateBack }) =>{
             <Ionicons name="person" size={40} color="#8B0000" />
           </View>
           
-          <Text style={styles.profileName}>Nombre</Text>
-          <Text style={styles.profileDescription}>Descripcion</Text>
-          <Text style={styles.profileJoinDate}>Se unio en enero del 2020</Text>
+          <Text style={styles.profileName}>{profile.name}</Text>
+          <Text style={styles.profileDescription}>{profile.description}</Text>
+          <Text style={styles.profileJoinDate}>{profile.joinDate}</Text>
           
-          <TouchableOpacity style={styles.editButton}>
+          <TouchableOpacity 
+            style={styles.editButton}
+            onPress={() => setShowEditModal(true)}
+          >
             <Text style={styles.editButtonText}>Editar Perfil</Text>
           </TouchableOpacity>
           
@@ -145,13 +282,19 @@ const ProfileScreen = ({ onNavigateBack }) =>{
         </View>
       </TouchableOpacity>
 
+      {/* Modal para Editar Perfil */}
+      <EditProfileModal
+        visible={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        onSave={handleSaveProfile}
+        currentProfile={profile}
+      />
+
       {/* Bottom Wave */}
       <View style={styles.bottomWave} />
     </SafeAreaView>
   );
 };
-
-
 
 const styles = StyleSheet.create({
   container: {
@@ -201,6 +344,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     marginBottom: 5,
+    textAlign: 'center',
   },
   profileJoinDate: {
     fontSize: 14,
@@ -315,6 +459,114 @@ const styles = StyleSheet.create({
     backgroundColor: '#8B0000',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+  },
+  // Estilos del Modal de Edición
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#FFF8DC',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+    minHeight: '60%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  modalHeaderButton: {
+    padding: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  saveButton: {
+    color: '#8B0000',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  avatarPreviewContainer: {
+    alignItems: 'center',
+    marginVertical: 15,
+  },
+  avatarHelpText: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 8,
+  },
+  inputContainer: {
+    marginVertical: 15,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: '#FFF',
+    color: '#333',
+  },
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+  helpText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 5,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+    gap: 15,
+  },
+  cancelButton: {
+    flex: 1,
+    backgroundColor: '#F5F5F5',
+    paddingVertical: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  saveProfileButton: {
+    flex: 1,
+    backgroundColor: '#8B0000',
+    paddingVertical: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  saveProfileButtonText: {
+    color: '#FFA500',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 
