@@ -27,22 +27,32 @@ const PasswordRecoveryScreen = ({ navigation }) => {
     }
 
     try {
-      await sendPasswordResetEmail(auth, email, {
-        url: 'https://spaghetti-e2346.firebaseapp.com/reset-password',
-      });
+      // Removido el parámetro url para probar la funcionalidad básica
+      await sendPasswordResetEmail(auth, email);
+      
       Alert.alert(
         'Correo enviado',
-        'Te enviamos un correo para restablecer tu contraseña.'
+        'Te enviamos un correo para restablecer tu contraseña. Revisá también tu carpeta de spam.'
       );
       navigation.goBack(); // o navigation.navigate('Login');
     } catch (error) {
-      console.log(error);
+      console.log('Error completo:', error); // Para debug más detallado
       let mensaje = 'Ocurrió un error. Verificá el correo.';
-      if (error.code === 'auth/user-not-found') {
-        mensaje = 'No se encontró un usuario con ese correo.';
-      } else if (error.code === 'auth/invalid-email') {
-        mensaje = 'Correo electrónico inválido.';
+      
+      switch (error.code) {
+        case 'auth/user-not-found':
+          mensaje = 'No se encontró un usuario con ese correo.';
+          break;
+        case 'auth/invalid-email':
+          mensaje = 'Correo electrónico inválido.';
+          break;
+        case 'auth/too-many-requests':
+          mensaje = 'Demasiados intentos. Intentá más tarde.';
+          break;
+        default:
+          mensaje = `Error: ${error.message}`;
       }
+      
       Alert.alert('Error', mensaje);
     }
   };
