@@ -26,6 +26,7 @@ export default function Registro() {
   const [contrasena, setContrasena] = useState('');
   const [fechaNacimiento, setFechaNacimiento] = useState(new Date());
   const [mostrarPicker, setMostrarPicker] = useState(false);
+  const [mostrarContrasena, setMostrarContrasena] = useState(false);
 
   const onDateChange = (event, selectedDate) => {
     const currentDate = selectedDate || fechaNacimiento;
@@ -105,14 +106,24 @@ export default function Registro() {
         />
 
         <Text style={styles.label}>CONTRASEÑA</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="******"
-          placeholderTextColor="#fff9ea"
-          secureTextEntry
-          value={contrasena}
-          onChangeText={setContrasena}
-        />
+        <View style={[styles.passwordContainer, styles.superpuesto]}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="******"
+            placeholderTextColor="#fff9ea"
+            secureTextEntry={!mostrarContrasena}
+            value={contrasena}
+            onChangeText={setContrasena}
+          />
+          <TouchableOpacity
+            style={styles.eyeButton}
+            onPress={() => setMostrarContrasena(!mostrarContrasena)}
+          >
+            <Text style={styles.eyeIcon}>
+              {mostrarContrasena ? '🙈' : '👁️'}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         <Text style={styles.label}>FECHA DE NACIMIENTO</Text>
         <TouchableOpacity
@@ -196,6 +207,29 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#fff9ea',
     marginBottom: 8,
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#8e0c0c',
+    borderRadius: 10,
+    marginBottom: 8,
+    borderWidth: 1.5,
+    borderColor: '#fff9ea',
+  },
+  passwordInput: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 18,
+  },
+  eyeButton: {
+    paddingRight: 18,
+    paddingVertical: 20,
+  },
+  eyeIcon: {
+    fontSize: 20,
   },
   dateText: {
     color: '#fff9ea',
