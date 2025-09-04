@@ -20,6 +20,7 @@ const { width } = Dimensions.get('window');
 export default function Login({ navigation }) {
   const [email, setEmail] = useState('');
   const [contrasena, setContrasena] = useState('');
+  const [mostrarContrasena, setMostrarContrasena] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !contrasena) {
@@ -31,7 +32,7 @@ export default function Login({ navigation }) {
       const userCredential = await signInWithEmailAndPassword(auth, email, contrasena);
       const user = userCredential.user;
       Alert.alert('Éxito', `Bienvenido, ${user.email}`);
-      navigation.navigate('Feed'); // 🔁 redirige a Feed
+      navigation.navigate('Feed'); // 🔍 redirige a Feed
     } catch (error) {
       Alert.alert('Error al iniciar sesión', error.message);
     }
@@ -57,14 +58,24 @@ export default function Login({ navigation }) {
           />
 
           <Text style={styles.label}>CONTRASEÑA</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="******"
-            placeholderTextColor="#fff9ea"
-            secureTextEntry
-            value={contrasena}
-            onChangeText={setContrasena}
-          />
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="******"
+              placeholderTextColor="#fff9ea"
+              secureTextEntry={!mostrarContrasena}
+              value={contrasena}
+              onChangeText={setContrasena}
+            />
+            <TouchableOpacity
+              style={styles.eyeButton}
+              onPress={() => setMostrarContrasena(!mostrarContrasena)}
+            >
+              <Text style={styles.eyeIcon}>
+                {mostrarContrasena ? '🙈' : '👁️'}
+              </Text>
+            </TouchableOpacity>
+          </View>
 
           <TouchableOpacity onPress={() => navigation.navigate('Contraseñaperdida')}>
             <Text style={styles.olvidasteTexto}>¿Olvidaste tu contraseña?</Text>
@@ -147,6 +158,29 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#fff9ea',
   },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#8e0c0c',
+    borderRadius: 8,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#fff9ea',
+  },
+  passwordInput: {
+    flex: 1,
+    color: '#fff',
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    fontSize: 16,
+  },
+  eyeButton: {
+    paddingRight: 14,
+    paddingVertical: 16,
+  },
+  eyeIcon: {
+    fontSize: 20,
+  },
   boton: {
     backgroundColor: '#fff',
     paddingVertical: 16,
@@ -182,3 +216,4 @@ const styles = StyleSheet.create({
     height: 210,
   },
 });
+
