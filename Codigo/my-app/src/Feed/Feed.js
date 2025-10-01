@@ -251,6 +251,13 @@ const FeedScreen = ({ navigation }) => {
     navigation.navigate('Perfil');
   };
 
+  
+  // Función para navegar a la pantalla de Configuración
+  const handleNavigateToSettings = () => {
+    // Asegúrate de que 'Configuracion' coincida con el nombre de tu pantalla de configuración
+    navigation.navigate('UserConfig');
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="#000" barStyle="light-content" />
@@ -408,6 +415,175 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
+    marginBottom: 5,
+  },
+  postDescription: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+  },
+  postImage: {
+    width: '100%',
+    height: 250,
+    marginVertical: 10,
+  },
+  postActions: {
+    flexDirection: 'row',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+    gap: 20,
+  },
+  actionButton: {
+    padding: 5,
+  },
+  floatingButton: {
+  position: 'absolute',
+  bottom: 100,
+  right: 20,
+  backgroundColor: '#8B0000',
+  paddingHorizontal: 16,
+  paddingVertical: 12,
+  borderRadius: 25,
+  elevation: 8,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 8,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+
+floatingButtonContent: {
+  flexDirection: 'row',        // Coloca los elementos en fila horizontal
+  alignItems: 'center',        // Centra verticalmente
+  justifyContent: 'center',    // Centra horizontalmente (opcional)
+  gap: 6,                      // Espacio entre el ícono y el texto (opcional)
+},
+
+  floatingButtonText: {
+  color: '#ffffffff',
+  fontSize: 16,
+  fontWeight: 'bold',
+  },
+  // Estilos del Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#FFF8DC',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+    minHeight: '70%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  modalHeaderButton: {
+    padding: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  publishButton: {
+    color: '#8B0000',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  inputContainer: {
+    marginVertical: 15,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: '#FFF',
+    color: '#333',
+  },
+  textArea: {
+    height: 100,
+    textAlignVertical: 'top',
+  },
+  helpText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 5,
+  },
+  imagePreviewContainer: {
+    marginVertical: 15,
+  },
+  imagePreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    backgroundColor: '#F0F0F0',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+    gap: 15,
+  },
+  cancelButton: {
+    flex: 1,
+    backgroundColor: '#F5F5F5',
+    paddingVertical: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  createButton: {
+    flex: 1,
+    backgroundColor: '#8B0000',
+    paddingVertical: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  createButtonText: {
+    color: '#FFA500',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  bottomWave: {
+    height: 50,
+    backgroundColor: '#8B0000',
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+  },
+});
+
+export default FeedScreen;
     marginBottom: 5,
   },
   postDescription: {
