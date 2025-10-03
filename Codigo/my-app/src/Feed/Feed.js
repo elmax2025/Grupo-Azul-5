@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,21 +11,42 @@ import {
   Modal,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { 
+  collection, 
+  onSnapshot, 
+  query, 
+  orderBy,
+  doc,
+  getDoc,
+  addDoc,
+  updateDoc,
+  serverTimestamp 
+} from 'firebase/firestore';
+import { db, auth } from '../../firebase/config';
 
 // Componente de Post
 const PostCard = ({ post, onLike, onSave, onComment }) => (
   <View style={styles.postCard}>
     <View style={styles.postHeader}>
-      <Text style={styles.userName}>{post.userName}</Text>
+      <Text style={styles.userName}>{post.Nombre_Usuario || 'Usuario'}</Text>
     </View>
     <View style={styles.postContent}>
-      <Text style={styles.postTitle}>{post.title}</Text>
-      <Text style={styles.postDescription}>{post.description}</Text>
+      <Text style={styles.postTitle}>{post.Titulo}</Text>
+      <Text style={styles.postDescription}>{post.Descripcion}</Text>
     </View>
-    {post.image && (
-      <Image source={{ uri: post.image }} style={styles.postImage} />
+    {/* Mostrar imagen Base64 o URL normal */}
+    {post.ImagenBase64 && (
+      <Image 
+        source={{ uri: post.ImagenBase64 }} 
+        style={styles.postImage} 
+      />
+    )}
+    {post.Imagen && !post.ImagenBase64 && (
+      <Image source={{ uri: post.Imagen }} style={styles.postImage} />
     )}
     <View style={styles.postActions}>
       <TouchableOpacity onPress={() => onLike(post.id)} style={styles.actionButton}>
@@ -34,6 +55,7 @@ const PostCard = ({ post, onLike, onSave, onComment }) => (
           size={24} 
           color={post.isLiked ? "#8B0000" : "#666"} 
         />
+        <Text style={styles.likeCount}>{post.Cant_MeGustas || 0}</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={() => onSave(post.id)} style={styles.actionButton}>
         <Ionicons 
@@ -50,40 +72,166 @@ const PostCard = ({ post, onLike, onSave, onComment }) => (
 );
 
 // Modal para Crear Publicación
-const CreatePostModal = ({ visible, onClose, onCreatePost }) => {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
+const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
+  const [titulo, setTitulo] = useState('');
+  const [descripcion, setDescripcion] = useState('');
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
-  const handleCreatePost = () => {
-    if (!title.trim() || !description.trim()) {
+  // Solicitar permisos al abrir el modal
+  useEffect(() => {
+    if (visible) {
+      requestPermissions();
+    }
+  }, [visible]);
+
+  const requestPermissions = async () => {
+    try {
+      const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
+      const { status: libraryStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (cameraStatus !== 'granted') {
+        Alert.alert('Permiso requerido', 'Necesitamos acceso a la cámara para tomar fotos');
+      }
+      if (libraryStatus !== 'granted') {
+        Alert.alert('Permiso requerido', 'Necesitamos acceso a la galería para seleccionar imágenes');
+      }
+    } catch (error) {
+      console.error('Error solicitando permisos:', error);
+    }
+  };
+
+  // CONVERTIR IMAGEN A BASE64 - SIN FIREBASE STORAGE
+  const uploadImage = async (uri) => {
+    try {
+      console.log('📸 Convirtiendo imagen a Base64...');
+      
+      // Convertir imagen a Base64
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64data = reader.result;
+          console.log('✅ Imagen convertida a Base64, tamaño:', base64data.length);
+          resolve(base64data);
+        };
+        reader.onerror = () => {
+          reject(new Error('Error leyendo la imagen'));
+        };
+        reader.readAsDataURL(blob);
+      });
+      
+    } catch (error) {
+      console.error('❌ Error convirtiendo imagen:', error);
+      Alert.alert('Error', 'No se pudo procesar la imagen');
+      throw error;
+    }
+  };
+
+  // Abrir galería
+  const pickImageFromGallery = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.7,
+        maxWidth: 800,
+        maxHeight: 800,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const selectedAsset = result.assets[0];
+        
+        // Validar tamaño (Base64 puede ser grande)
+        if (selectedAsset.fileSize > 2 * 1024 * 1024) {
+          Alert.alert('Error', 'La imagen es demasiado grande. Elige una más pequeña (menos de 2MB).');
+          return;
+        }
+        
+        setSelectedImage(selectedAsset.uri);
+      }
+    } catch (error) {
+      console.error('Error seleccionando imagen:', error);
+      Alert.alert('Error', 'No se pudo seleccionar la imagen');
+    }
+  };
+
+  // Tomar foto con la cámara
+  const takePhoto = async () => {
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.7,
+        maxWidth: 800,
+        maxHeight: 800,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setSelectedImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error tomando foto:', error);
+      Alert.alert('Error', 'No se pudo tomar la foto');
+    }
+  };
+
+  // Eliminar imagen seleccionada
+  const removeImage = () => {
+    setSelectedImage(null);
+  };
+
+  const handleCreatePost = async () => {
+    if (!titulo.trim() || !descripcion.trim()) {
       Alert.alert('Error', 'Por favor completa todos los campos');
       return;
     }
 
-    const newPost = {
-      id: Date.now(),
-      userName: '@nuevo_usuario', // Usuario por defecto para posts nuevos
-      title: title.trim(),
-      description: description.trim(),
-      image: imageUrl.trim() || null, // null si no hay imagen
-      isLiked: false,
-      isSaved: false,
-    };
+    try {
+      setUploading(true);
+      const user = auth.currentUser;
+      if (!user) {
+        Alert.alert('Error', 'Debes iniciar sesión para crear publicaciones');
+        return;
+      }
 
-    onCreatePost(newPost);
-    
-    // Limpiar campos
-    setTitle('');
-    setDescription('');
-    setImageUrl('');
-    onClose();
+      let imageBase64 = null;
+      
+      // Convertir imagen a Base64 si hay una seleccionada
+      if (selectedImage) {
+        console.log('🔄 Convirtiendo imagen a Base64...');
+        imageBase64 = await uploadImage(selectedImage);
+        console.log('✅ Imagen convertida exitosamente');
+      }
+
+      await onCreatePost({
+        Titulo: titulo.trim(),
+        Descripcion: descripcion.trim(),
+        Imagen: imageBase64, // Ahora es Base64
+        Nombre_Usuario: userName
+      });
+      
+      // Limpiar campos
+      setTitulo('');
+      setDescripcion('');
+      setSelectedImage(null);
+      setUploading(false);
+      onClose();
+    } catch (error) {
+      console.error('Error en handleCreatePost:', error);
+      setUploading(false);
+      Alert.alert('Error', 'No se pudo crear la publicación');
+    }
   };
 
   const handleClose = () => {
-    setTitle('');
-    setDescription('');
-    setImageUrl('');
+    setTitulo('');
+    setDescripcion('');
+    setSelectedImage(null);
+    setUploading(false);
     onClose();
   };
 
@@ -96,80 +244,119 @@ const CreatePostModal = ({ visible, onClose, onCreatePost }) => {
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContainer}>
-          {/* Header del Modal */}
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={handleClose} style={styles.modalHeaderButton}>
               <Ionicons name="close" size={24} color="#666" />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Nueva Publicación</Text>
-            <TouchableOpacity onPress={handleCreatePost} style={styles.modalHeaderButton}>
-              <Text style={styles.publishButton}>Publicar</Text>
+            <TouchableOpacity 
+              onPress={handleCreatePost} 
+              style={styles.modalHeaderButton}
+              disabled={uploading}
+            >
+              {uploading ? (
+                <ActivityIndicator size="small" color="#8B0000" />
+              ) : (
+                <Text style={styles.publishButton}>Publicar</Text>
+              )}
             </TouchableOpacity>
           </View>
 
-          {/* Contenido del Modal */}
           <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            {/* Información del usuario */}
+            <View style={styles.userInfoContainer}>
+              <View style={styles.userAvatar}>
+                <Ionicons name="person" size={20} color="#8B0000" />
+              </View>
+              <Text style={styles.userNameText}>Publicando como: {userName}</Text>
+            </View>
+
+            {/* Selección de imagen */}
+            <View style={styles.imageSelectionContainer}>
+              <Text style={styles.inputLabel}>Imagen (Opcional)</Text>
+              
+              {selectedImage ? (
+                <View style={styles.selectedImageContainer}>
+                  <Image source={{ uri: selectedImage }} style={styles.selectedImage} />
+                  <TouchableOpacity style={styles.removeImageButton} onPress={removeImage}>
+                    <Ionicons name="close-circle" size={24} color="#8B0000" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.imageButtonsContainer}>
+                  <TouchableOpacity style={styles.imageButton} onPress={pickImageFromGallery}>
+                    <Ionicons name="images-outline" size={24} color="#8B0000" />
+                    <Text style={styles.imageButtonText}>Galería</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity style={styles.imageButton} onPress={takePhoto}>
+                    <Ionicons name="camera-outline" size={24} color="#8B0000" />
+                    <Text style={styles.imageButtonText}>Cámara</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+
             {/* Campo Título */}
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Título</Text>
+              <Text style={styles.inputLabel}>Título *</Text>
               <TextInput
                 style={styles.textInput}
                 placeholder="Escribe el título de tu publicación..."
-                value={title}
-                onChangeText={setTitle}
+                value={titulo}
+                onChangeText={setTitulo}
                 maxLength={100}
+                editable={!uploading}
               />
+              <Text style={styles.helpText}>{titulo.length}/100 caracteres</Text>
             </View>
 
             {/* Campo Descripción */}
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Descripción</Text>
+              <Text style={styles.inputLabel}>Descripción *</Text>
               <TextInput
                 style={[styles.textInput, styles.textArea]}
                 placeholder="Describe tu publicación..."
-                value={description}
-                onChangeText={setDescription}
+                value={descripcion}
+                onChangeText={setDescripcion}
                 multiline={true}
                 numberOfLines={4}
                 maxLength={500}
+                editable={!uploading}
               />
+              <Text style={styles.helpText}>{descripcion.length}/500 caracteres</Text>
             </View>
 
-            {/* Campo URL de Imagen (Opcional) */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>URL de Imagen (Opcional)</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="https://ejemplo.com/imagen.jpg"
-                value={imageUrl}
-                onChangeText={setImageUrl}
-                keyboardType="url"
-              />
-              <Text style={styles.helpText}>
-                Si no agregas una imagen, se usará una imagen por defecto
-              </Text>
-            </View>
-
-            {/* Preview de la imagen */}
-            {imageUrl.trim() && (
-              <View style={styles.imagePreviewContainer}>
-                <Text style={styles.inputLabel}>Vista Previa</Text>
-                <Image 
-                  source={{ uri: imageUrl }} 
-                  style={styles.imagePreview}
-                  onError={() => setImageUrl('')}
-                />
+            {/* Indicador de carga */}
+            {uploading && (
+              <View style={styles.uploadingContainer}>
+                <ActivityIndicator size="large" color="#8B0000" />
+                <Text style={styles.uploadingText}>
+                  {selectedImage ? 'Procesando imagen...' : 'Creando publicación...'}
+                </Text>
               </View>
             )}
           </ScrollView>
 
           {/* Botones de acción */}
           <View style={styles.modalActions}>
-            <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
+            <TouchableOpacity 
+              style={[styles.cancelButton, uploading && styles.disabledButton]} 
+              onPress={handleClose}
+              disabled={uploading}
+            >
               <Text style={styles.cancelButtonText}>Cancelar</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.createButton} onPress={handleCreatePost}>
-              <Text style={styles.createButtonText}>Crear Publicación</Text>
+            <TouchableOpacity 
+              style={[styles.createButton, uploading && styles.disabledButton]} 
+              onPress={handleCreatePost}
+              disabled={uploading}
+            >
+              {uploading ? (
+                <ActivityIndicator size="small" color="#FFA500" />
+              ) : (
+                <Text style={styles.createButtonText}>Crear Publicación</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -178,88 +365,174 @@ const CreatePostModal = ({ visible, onClose, onCreatePost }) => {
   );
 };
 
-// Pantalla Principal (Feed) con botón de crear
+// Pantalla Principal (Feed)
 const FeedScreen = ({ navigation }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [posts, setPosts] = useState([
-    {
-      id: 1,
-      userName: '@usuario1',
-      title: 'Mi primer plato del día',
-      description: 'Desayuno delicioso con ingredientes frescos',
-      image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=300&h=200&fit=crop',
-      isLiked: false,
-      isSaved: false,
-    },
-    {
-      id: 2,
-      userName: '@chef_maria',
-      title: 'Receta secreta de la abuela',
-      description: 'Una receta familiar que ha pasado de generación en generación. Los secretos están en los ingredientes locales y el tiempo de cocción.',
-      image: null, // Post sin imagen
-      isLiked: true,
-      isSaved: false,
-    },
-    {
-      id: 3,
-      userName: '@foodlover',
-      title: 'Cena romántica perfecta',
-      description: 'La combinación ideal para una velada especial',
-      image: 'https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=300&h=200&fit=crop',
-      isLiked: false,
-      isSaved: true,
-    },
-    {
-      id: 4,
-      userName: '@cocina_casera',
-      title: 'Tips para cocinar en casa',
-      description: 'Algunos consejos que he aprendido después de años cocinando. Lo más importante es usar ingredientes de calidad y cocinar con amor.',
-      image: null, // Post sin imagen
-      isLiked: false,
-      isSaved: false,
-    },
-  ]);
+  const [activeTab, setActiveTab] = useState('paraTi');
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [userName, setUserName] = useState('Usuario');
 
-  const handleLike = (postId) => {
-    setPosts(posts.map(post => 
-      post.id === postId ? { ...post, isLiked: !post.isLiked } : post
-    ));
+  // Cargar nombre del usuario actual
+  useEffect(() => {
+    const loadUserName = async () => {
+      try {
+        const user = auth.currentUser;
+        if (!user) {
+          setUserName('Usuario');
+          return;
+        }
+
+        const userDocRef = doc(db, 'Spaghetti', 'Usuario', 'Usuario', user.uid);
+        const userDoc = await getDoc(userDocRef);
+
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setUserName(userData.nombre || user.email || 'Usuario');
+        } else {
+          setUserName(user.email || 'Usuario');
+        }
+      } catch (error) {
+        console.error('Error cargando nombre de usuario:', error);
+        setUserName('Usuario');
+      }
+    };
+
+    loadUserName();
+  }, []);
+
+  // Cargar publicaciones desde Firebase
+  useEffect(() => {
+    const loadPosts = () => {
+      try {
+        const user = auth.currentUser;
+        if (!user) {
+          setLoading(false);
+          return;
+        }
+
+        let postsQuery;
+        
+        if (activeTab === 'paraTi') {
+          postsQuery = query(
+            collection(db, 'Spaghetti/Publicaciones/Publicaciones'),
+            orderBy('Fecha_publicacion', 'desc')
+          );
+        } else {
+          postsQuery = query(
+            collection(db, 'Spaghetti/Publicaciones/Publicaciones'),
+            orderBy('Fecha_publicacion', 'desc')
+          );
+        }
+
+        const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
+          const postsData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          
+          setPosts(postsData);
+          setLoading(false);
+        }, (error) => {
+          console.error('Error cargando posts:', error);
+          setLoading(false);
+        });
+
+        return unsubscribe;
+      } catch (error) {
+        console.error('Error en loadPosts:', error);
+        setLoading(false);
+      }
+    };
+
+    const unsubscribe = loadPosts();
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [activeTab]);
+
+  // Crear nueva publicación CON IMAGEN BASE64
+  const handleCreatePost = async (postData) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('Usuario no autenticado');
+      }
+
+      console.log('📝 Creando post con imagen Base64...');
+
+      const postDataToSave = {
+        Titulo: postData.Titulo,
+        Descripcion: postData.Descripcion,
+        Cant_MeGustas: 0,
+        Fecha_publicacion: serverTimestamp(),
+        userId: user.uid,
+        Nombre_Usuario: postData.Nombre_Usuario,
+        isLiked: false,
+        isSaved: false
+      };
+
+      // Si hay imagen Base64, guardarla en Firestore
+      if (postData.Imagen) {
+        postDataToSave.ImagenBase64 = postData.Imagen;
+        console.log('🖼️ Imagen guardada como Base64 en Firestore');
+      }
+
+      await addDoc(collection(db, 'Spaghetti/Publicaciones/Publicaciones'), postDataToSave);
+
+      console.log('✅ Post creado exitosamente con imagen Base64');
+      Alert.alert('¡Éxito!', 'Tu publicación con imagen ha sido creada');
+    } catch (error) {
+      console.error('❌ Error creando post:', error);
+      Alert.alert('Error', 'No se pudo crear la publicación');
+      throw error;
+    }
+  };
+
+  const handleLike = async (postId) => {
+    try {
+      const postRef = doc(db, 'Spaghetti/Publicaciones/Publicaciones', postId);
+      const post = posts.find(p => p.id === postId);
+      
+      if (post) {
+        const newLikeCount = post.isLiked ? 
+          (post.Cant_MeGustas || 0) - 1 : 
+          (post.Cant_MeGustas || 0) + 1;
+        
+        await updateDoc(postRef, {
+          Cant_MeGustas: newLikeCount,
+          isLiked: !post.isLiked
+        });
+      }
+    } catch (error) {
+      console.error('Error actualizando like:', error);
+    }
   };
 
   const handleSave = (postId) => {
-    setPosts(posts.map(post => 
-      post.id === postId ? { ...post, isSaved: !post.isSaved } : post
-    ));
-  };
-
-  const handleTag = (postId) => {
-    console.log('Tag post:', postId);
+    console.log('Guardar post:', postId);
   };
 
   const handleComment = (postId) => {
     console.log('Comment on post:', postId);
   };
 
-  const handleCreatePost = (newPost) => {
-    setPosts([newPost, ...posts]); // Agregar al inicio de la lista
-    Alert.alert('¡Éxito!', 'Tu publicación ha sido creada');
-  };
-
-  // Función para navegar a la pantalla de Perfil
   const handleNavigateToProfile = () => {
     navigation.navigate('Perfil');
   };
 
-  // Función para navegar a la pantalla de Configuración
   const handleNavigateToSettings = () => {
     navigation.navigate('UserConfig');
+  };
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="#000" barStyle="light-content" />
       
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleNavigateToProfile} style={styles.headerButton}>
           <Ionicons name="person-circle-outline" size={32} color="#8B0000" />
@@ -277,30 +550,84 @@ const FeedScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabContainer}>
-        <TouchableOpacity style={[styles.tab, styles.activeTab]}>
-          <Text style={[styles.tabText, styles.activeTabText]}>Para ti</Text>
+        <TouchableOpacity 
+          style={[
+            styles.tab, 
+            activeTab === 'paraTi' && styles.activeTab
+          ]}
+          onPress={() => handleTabChange('paraTi')}
+        >
+          <Text style={[
+            styles.tabText, 
+            activeTab === 'paraTi' && styles.activeTabText
+          ]}>
+            Para ti
+          </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tab}>
-          <Text style={styles.tabText}>Siguiendo</Text>
+        <TouchableOpacity 
+          style={[
+            styles.tab, 
+            activeTab === 'siguiendo' && styles.activeTab
+          ]}
+          onPress={() => handleTabChange('siguiendo')}
+        >
+          <Text style={[
+            styles.tabText, 
+            activeTab === 'siguiendo' && styles.activeTabText
+          ]}>
+            Siguiendo
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Posts */}
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {posts.map((post) => (
-          <PostCard
-            key={post.id}
-            post={post}
-            onLike={handleLike}
-            onSave={handleSave}
-            onComment={handleComment}
-          />
-        ))}
+        {loading ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="refresh-outline" size={60} color="#CCC" />
+            <Text style={styles.emptyStateText}>Cargando publicaciones...</Text>
+          </View>
+        ) : posts.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons 
+              name={activeTab === 'paraTi' ? "compass-outline" : "people-outline"} 
+              size={60} 
+              color="#CCC" 
+            />
+            <Text style={styles.emptyStateText}>
+              {activeTab === 'paraTi' 
+                ? 'No hay publicaciones aún' 
+                : 'No hay publicaciones de usuarios que sigues'
+              }
+            </Text>
+            <Text style={styles.emptyStateSubtext}>
+              {activeTab === 'paraTi'
+                ? 'Sé el primero en crear una publicación'
+                : 'Sigue a más usuarios para ver sus publicaciones aquí'
+              }
+            </Text>
+            <TouchableOpacity 
+              style={styles.createFirstButton}
+              onPress={() => setShowCreateModal(true)}
+            >
+              <Text style={styles.createFirstButtonText}>
+                Crear primera publicación
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          posts.map((post) => (
+            <PostCard
+              key={post.id}
+              post={post}
+              onLike={handleLike}
+              onSave={handleSave}
+              onComment={handleComment}
+            />
+          ))
+        )}
       </ScrollView>
 
-      {/* Botón Flotante para Crear Publicación con imagen personalizada */}
       <TouchableOpacity 
         style={styles.floatingButton} 
         onPress={() => setShowCreateModal(true)}
@@ -311,19 +638,19 @@ const FeedScreen = ({ navigation }) => {
         </View>
       </TouchableOpacity>
 
-      {/* Modal para Crear Publicación */}
       <CreatePostModal
         visible={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreatePost={handleCreatePost}
+        userName={userName}
       />
 
-      {/* Bottom Wave */}
       <View style={styles.bottomWave} />
     </SafeAreaView>
   );
 };
 
+// Los estilos permanecen IGUALES
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -383,7 +710,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    marginBottom: 80, // Espacio para el botón flotante
+    marginBottom: 80,
   },
   postCard: {
     backgroundColor: '#FFF',
@@ -434,40 +761,157 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#F0F0F0',
     gap: 20,
+    alignItems: 'center',
   },
   actionButton: {
     padding: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  likeCount: {
+    fontSize: 14,
+    color: '#666',
   },
   floatingButton: {
-  position: 'absolute',
-  bottom: 100,
-  right: 20,
-  backgroundColor: '#8B0000',
-  paddingHorizontal: 16,
-  paddingVertical: 12,
-  borderRadius: 25,
-  elevation: 8,
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.3,
-  shadowRadius: 8,
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-
-floatingButtonContent: {
-  flexDirection: 'row',        // Coloca los elementos en fila horizontal
-  alignItems: 'center',        // Centra verticalmente
-  justifyContent: 'center',    // Centra horizontalmente (opcional)
-  gap: 6,                      // Espacio entre el ícono y el texto (opcional)
-},
-
-  floatingButtonText: {
-  color: '#ffffffff',
-  fontSize: 16,
-  fontWeight: 'bold',
+    position: 'absolute',
+    bottom: 100,
+    right: 20,
+    backgroundColor: '#8B0000',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 25,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  // Estilos del Modal
+  floatingButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  floatingButtonText: {
+    color: '#ffffffff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+    paddingHorizontal: 40,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    color: '#666',
+    marginTop: 16,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  createFirstButton: {
+    backgroundColor: '#8B0000',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 25,
+    marginTop: 20,
+  },
+  createFirstButtonText: {
+    color: '#FFA500',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  imageSelectionContainer: {
+    marginVertical: 15,
+  },
+  imageButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  imageButton: {
+    flex: 1,
+    backgroundColor: '#FFF',
+    borderWidth: 2,
+    borderColor: '#8B0000',
+    borderRadius: 12,
+    padding: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  imageButtonText: {
+    color: '#8B0000',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  selectedImageContainer: {
+    position: 'relative',
+    alignItems: 'center',
+  },
+  selectedImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    backgroundColor: '#F0F0F0',
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: 15,
+    padding: 2,
+  },
+  uploadingContainer: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  uploadingText: {
+    marginTop: 10,
+    color: '#666',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  userInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    padding: 12,
+    borderRadius: 12,
+    marginVertical: 10,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  userAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F0F0F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  userNameText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -533,15 +977,7 @@ floatingButtonContent: {
     fontSize: 12,
     color: '#666',
     marginTop: 5,
-  },
-  imagePreviewContainer: {
-    marginVertical: 15,
-  },
-  imagePreview: {
-    width: '100%',
-    height: 200,
-    borderRadius: 12,
-    backgroundColor: '#F0F0F0',
+    textAlign: 'right',
   },
   modalActions: {
     flexDirection: 'row',
