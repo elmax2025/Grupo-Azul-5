@@ -2,11 +2,13 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
-const ConfiguracionUsuario = () => {
+const Configuracion = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.backArrow}>{'<'}</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backArrow}>{'<'}</Text>
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Configuracion</Text>
       </View>
 
@@ -101,4 +103,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ConfiguracionUsuario;
+export default Configuracion;
