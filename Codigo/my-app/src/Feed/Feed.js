@@ -12,23 +12,180 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  FlatList, // Importado para la lista de comentarios
+  KeyboardAvoidingView, // Importado para el input de comentario
+  Platform, // Importado para KeyboardAvoidingView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { 
-  collection, 
-  onSnapshot, 
-  query, 
+import {
+  collection,
+  onSnapshot,
+  query,
   orderBy,
   doc,
   getDoc,
   addDoc,
   updateDoc,
-  serverTimestamp 
+  serverTimestamp,
+  arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore';
 import { db, auth } from '../../firebase/config';
 
-// Componente de Post
+// --- NUEVO COMPONENTE: CommentModal ---
+const CommentModal = ({ visible, onClose, postId, postTitle, userName }) => {
+  const [commentText, setCommentText] = useState('');
+  const [comments, setComments] = useState([]);
+  const [loadingComments, setLoadingComments] = useState(true);
+  const [isSending, setIsSending] = useState(false);
+  const currentUserId = auth.currentUser?.uid;
+
+  // 1. Cargar comentarios
+  useEffect(() => {
+    if (!visible || !postId) return;
+
+    // Referencia al documento de la publicación
+    const postRef = doc(db, 'Spaghetti/Publicaciones/Publicaciones', postId);
+
+    // Listener para obtener los comentarios en tiempo real
+    const unsubscribe = onSnapshot(postRef, (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        const postData = docSnapshot.data();
+        const loadedComments = postData.Comentarios || []; // Usar el array 'Comentarios'
+        
+        // Agregar un formato de fecha o lo que necesites (aquí simplificamos)
+        const formattedComments = loadedComments.map(comment => ({
+          ...comment,
+          // Si tienes timestamp, podrías formatearlo aquí
+        })).reverse(); // Mostrar el comentario más reciente primero
+
+        setComments(formattedComments);
+        setLoadingComments(false);
+      } else {
+        console.log("No existe el post para cargar comentarios.");
+        setLoadingComments(false);
+      }
+    }, (error) => {
+      console.error("Error al cargar comentarios:", error);
+      setLoadingComments(false);
+    });
+
+    return unsubscribe;
+  }, [visible, postId]);
+
+  // 2. Enviar un nuevo comentario
+  const handleSendComment = async () => {
+    if (!commentText.trim() || !currentUserId) return;
+
+    setIsSending(true);
+    const newComment = {
+      userId: currentUserId,
+      Nombre_Usuario: userName,
+      Texto: commentText.trim(),
+      Fecha: new Date().toISOString(), // Usamos ISO string como ejemplo simple
+    };
+
+    try {
+      const postRef = doc(db, 'Spaghetti/Publicaciones/Publicaciones', postId);
+
+      await updateDoc(postRef, {
+        Comentarios: arrayUnion(newComment),
+      });
+
+      setCommentText(''); // Limpiar el input
+    } catch (error) {
+      console.error('Error al agregar comentario:', error);
+      Alert.alert('Error', 'No se pudo enviar el comentario. Inténtalo de nuevo.');
+    } finally {
+      setIsSending(false);
+    }
+  };
+  
+  // Componente individual para renderizar un comentario
+  const renderComment = ({ item }) => (
+    <View style={commentStyles.commentItem}>
+      <Text style={commentStyles.commentUser}>{item.Nombre_Usuario || 'Usuario Desconocido'}</Text>
+      <Text style={commentStyles.commentText}>{item.Texto}</Text>
+    </View>
+  );
+
+  const handleClose = () => {
+    setCommentText('');
+    setComments([]);
+    setLoadingComments(true);
+    onClose();
+  };
+
+  return (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={visible}
+      onRequestClose={handleClose}
+    >
+      <KeyboardAvoidingView
+        style={commentStyles.modalOverlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <View style={commentStyles.modalContainer}>
+          <View style={commentStyles.modalHeader}>
+            <TouchableOpacity onPress={handleClose} style={commentStyles.modalHeaderButton}>
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+            <Text style={commentStyles.modalTitle}>Comentarios</Text>
+            <View style={{ width: 44 }} /> {/* Espaciador */}
+          </View>
+
+          {loadingComments ? (
+            <ActivityIndicator size="large" color="#8B0000" style={{ marginVertical: 20 }} />
+          ) : (
+            <FlatList
+              data={comments}
+              renderItem={renderComment}
+              keyExtractor={(item, index) => index.toString()}
+              style={commentStyles.commentsList}
+              ListEmptyComponent={() => (
+                <View style={commentStyles.emptyState}>
+                  <Ionicons name="chatbubble-outline" size={50} color="#CCC" />
+                  <Text style={commentStyles.emptyStateText}>Sé el primero en comentar esta publicación.</Text>
+                </View>
+              )}
+            />
+          )}
+
+          {/* Área de Input de Comentario */}
+          <View style={commentStyles.commentInputContainer}>
+            <TextInput
+              style={commentStyles.commentInput}
+              placeholder="Añade un comentario..."
+              value={commentText}
+              onChangeText={setCommentText}
+              multiline={true}
+              maxHeight={100}
+              editable={!isSending}
+            />
+            <TouchableOpacity 
+              style={[commentStyles.sendButton, isSending || commentText.trim().length === 0 ? commentStyles.disabledSendButton : {}]}
+              onPress={handleSendComment}
+              disabled={isSending || commentText.trim().length === 0}
+            >
+              {isSending ? (
+                <ActivityIndicator size="small" color="#FFA500" />
+              ) : (
+                <Ionicons name="send" size={24} color="#FFF" />
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+};
+// --- FIN NUEVO COMPONENTE: CommentModal ---
+
+
+// Componente de Post - MODIFICADO para mostrar la cantidad de comentarios
 const PostCard = ({ post, onLike, onSave, onComment }) => (
   <View style={styles.postCard}>
     <View style={styles.postHeader}>
@@ -51,9 +208,9 @@ const PostCard = ({ post, onLike, onSave, onComment }) => (
     <View style={styles.postActions}>
       <TouchableOpacity onPress={() => onLike(post.id)} style={styles.actionButton}>
         <Ionicons 
-          name={post.isLiked ? "heart" : "heart-outline"} 
+          name={post.userLiked ? "heart" : "heart-outline"} 
           size={24} 
-          color={post.isLiked ? "#8B0000" : "#666"} 
+          color={post.userLiked ? "#8B0000" : "#666"} 
         />
         <Text style={styles.likeCount}>{post.Cant_MeGustas || 0}</Text>
       </TouchableOpacity>
@@ -64,21 +221,23 @@ const PostCard = ({ post, onLike, onSave, onComment }) => (
           color={post.isSaved ? "#8B0000" : "#666"} 
         />
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => onComment(post.id)} style={styles.actionButton}>
+      {/* Botón de Comentarios - AHORA ABRE EL MODAL */}
+      <TouchableOpacity onPress={() => onComment(post.id, post.Titulo)} style={styles.actionButton}>
         <Ionicons name="chatbubble-outline" size={24} color="#666" />
+        <Text style={styles.likeCount}>{post.Comentarios?.length || 0}</Text> {/* Muestra la cantidad */}
       </TouchableOpacity>
     </View>
   </View>
 );
 
-// Modal para Crear Publicación
+// Modal para Crear Publicación (Se mantiene igual)
 const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
+  // ... (MANTENER EL CÓDIGO DEL MODAL DE PUBLICACIÓN)
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [uploading, setUploading] = useState(false);
 
-  // Solicitar permisos al abrir el modal
   useEffect(() => {
     if (visible) {
       requestPermissions();
@@ -101,12 +260,10 @@ const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
     }
   };
 
-  // CONVERTIR IMAGEN A BASE64 - SIN FIREBASE STORAGE
   const uploadImage = async (uri) => {
     try {
       console.log('📸 Convirtiendo imagen a Base64...');
       
-      // Convertir imagen a Base64
       const response = await fetch(uri);
       const blob = await response.blob();
       
@@ -130,7 +287,6 @@ const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
     }
   };
 
-  // Abrir galería
   const pickImageFromGallery = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -145,7 +301,6 @@ const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const selectedAsset = result.assets[0];
         
-        // Validar tamaño (Base64 puede ser grande)
         if (selectedAsset.fileSize > 2 * 1024 * 1024) {
           Alert.alert('Error', 'La imagen es demasiado grande. Elige una más pequeña (menos de 2MB).');
           return;
@@ -159,7 +314,6 @@ const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
     }
   };
 
-  // Tomar foto con la cámara
   const takePhoto = async () => {
     try {
       const result = await ImagePicker.launchCameraAsync({
@@ -179,7 +333,6 @@ const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
     }
   };
 
-  // Eliminar imagen seleccionada
   const removeImage = () => {
     setSelectedImage(null);
   };
@@ -200,7 +353,6 @@ const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
 
       let imageBase64 = null;
       
-      // Convertir imagen a Base64 si hay una seleccionada
       if (selectedImage) {
         console.log('🔄 Convirtiendo imagen a Base64...');
         imageBase64 = await uploadImage(selectedImage);
@@ -210,11 +362,10 @@ const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
       await onCreatePost({
         Titulo: titulo.trim(),
         Descripcion: descripcion.trim(),
-        Imagen: imageBase64, // Ahora es Base64
+        Imagen: imageBase64, 
         Nombre_Usuario: userName
       });
       
-      // Limpiar campos
       setTitulo('');
       setDescripcion('');
       setSelectedImage(null);
@@ -234,7 +385,8 @@ const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
     setUploading(false);
     onClose();
   };
-
+  
+  // Render del modal de publicación
   return (
     <Modal
       animationType="slide"
@@ -365,15 +517,21 @@ const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
   );
 };
 
-// Pantalla Principal (Feed)
+// Pantalla Principal (Feed) - MODIFICADA para gestionar el modal de comentarios
 const FeedScreen = ({ navigation }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
+  // --- Estados para el modal de comentarios ---
+  const [showCommentModal, setShowCommentModal] = useState(false);
+  const [selectedPostId, setSelectedPostId] = useState(null);
+  const [selectedPostTitle, setSelectedPostTitle] = useState('');
+  // -------------------------------------------
   const [activeTab, setActiveTab] = useState('paraTi');
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState('Usuario');
+  const [currentUserId, setCurrentUserId] = useState(null);
 
-  // Cargar nombre del usuario actual
+  // Cargar nombre del usuario actual y ID (Se mantiene igual)
   useEffect(() => {
     const loadUserName = async () => {
       try {
@@ -383,6 +541,7 @@ const FeedScreen = ({ navigation }) => {
           return;
         }
 
+        setCurrentUserId(user.uid);
         const userDocRef = doc(db, 'Spaghetti', 'Usuario', 'Usuario', user.uid);
         const userDoc = await getDoc(userDocRef);
 
@@ -401,7 +560,7 @@ const FeedScreen = ({ navigation }) => {
     loadUserName();
   }, []);
 
-  // Cargar publicaciones desde Firebase
+  // Cargar publicaciones desde Firebase (Se mantiene igual, solo que ahora carga el array 'Comentarios')
   useEffect(() => {
     const loadPosts = () => {
       try {
@@ -426,10 +585,19 @@ const FeedScreen = ({ navigation }) => {
         }
 
         const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
-          const postsData = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }));
+          const postsData = snapshot.docs.map(doc => {
+            const postData = {
+              id: doc.id,
+              ...doc.data()
+            };
+
+            const userLiked = postData.likedBy && postData.likedBy.includes(user.uid);
+
+            return {
+              ...postData,
+              userLiked: userLiked || false 
+            };
+          });
           
           setPosts(postsData);
           setLoading(false);
@@ -449,9 +617,9 @@ const FeedScreen = ({ navigation }) => {
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [activeTab]);
+  }, [activeTab, currentUserId]);
 
-  // Crear nueva publicación CON IMAGEN BASE64
+  // Crear nueva publicación - MODIFICADO para inicializar el array `Comentarios`
   const handleCreatePost = async (postData) => {
     try {
       const user = auth.currentUser;
@@ -468,11 +636,11 @@ const FeedScreen = ({ navigation }) => {
         Fecha_publicacion: serverTimestamp(),
         userId: user.uid,
         Nombre_Usuario: postData.Nombre_Usuario,
-        isLiked: false,
-        isSaved: false
+        isSaved: false,
+        likedBy: [],
+        Comentarios: [], // <<< Inicializar el array de comentarios
       };
 
-      // Si hay imagen Base64, guardarla en Firestore
       if (postData.Imagen) {
         postDataToSave.ImagenBase64 = postData.Imagen;
         console.log('🖼️ Imagen guardada como Base64 en Firestore');
@@ -489,23 +657,34 @@ const FeedScreen = ({ navigation }) => {
     }
   };
 
+  // handleLike (Se mantiene igual)
   const handleLike = async (postId) => {
     try {
+      const user = auth.currentUser;
+      if (!user) {
+        Alert.alert('Error', 'Debes iniciar sesión para dar like');
+        return;
+      }
+
       const postRef = doc(db, 'Spaghetti/Publicaciones/Publicaciones', postId);
       const post = posts.find(p => p.id === postId);
       
       if (post) {
-        const newLikeCount = post.isLiked ? 
-          (post.Cant_MeGustas || 0) - 1 : 
-          (post.Cant_MeGustas || 0) + 1;
-        
-        await updateDoc(postRef, {
-          Cant_MeGustas: newLikeCount,
-          isLiked: !post.isLiked
-        });
+        if (post.userLiked) {
+          await updateDoc(postRef, {
+            Cant_MeGustas: (post.Cant_MeGustas || 0) - 1,
+            likedBy: arrayRemove(user.uid)
+          });
+        } else {
+          await updateDoc(postRef, {
+            Cant_MeGustas: (post.Cant_MeGustas || 0) + 1,
+            likedBy: arrayUnion(user.uid)
+          });
+        }
       }
     } catch (error) {
       console.error('Error actualizando like:', error);
+      Alert.alert('Error', 'No se pudo actualizar el like');
     }
   };
 
@@ -513,8 +692,22 @@ const FeedScreen = ({ navigation }) => {
     console.log('Guardar post:', postId);
   };
 
-  const handleComment = (postId) => {
-    console.log('Comment on post:', postId);
+  // handleComment - LÓGICA PARA ABRIR EL MODAL DE COMENTARIOS
+  const handleComment = (postId, postTitle) => {
+    if (!auth.currentUser) {
+      Alert.alert('Error', 'Debes iniciar sesión para comentar.');
+      return;
+    }
+    setSelectedPostId(postId);
+    setSelectedPostTitle(postTitle);
+    setShowCommentModal(true);
+  };
+
+  // Lógica para cerrar el modal de comentarios
+  const handleCloseCommentModal = () => {
+    setShowCommentModal(false);
+    setSelectedPostId(null);
+    setSelectedPostTitle('');
   };
 
   const handleNavigateToProfile = () => {
@@ -622,7 +815,7 @@ const FeedScreen = ({ navigation }) => {
               post={post}
               onLike={handleLike}
               onSave={handleSave}
-              onComment={handleComment}
+              onComment={handleComment} // Usa la nueva función
             />
           ))
         )}
@@ -644,14 +837,25 @@ const FeedScreen = ({ navigation }) => {
         onCreatePost={handleCreatePost}
         userName={userName}
       />
+      
+      {/* --- Agregar el CommentModal --- */}
+      <CommentModal
+        visible={showCommentModal}
+        onClose={handleCloseCommentModal}
+        postId={selectedPostId}
+        postTitle={selectedPostTitle}
+        userName={userName} // Pasar el nombre de usuario actual para el comentario
+      />
+      {/* ---------------------------------- */}
 
       <View style={styles.bottomWave} />
     </SafeAreaView>
   );
 };
 
-// Los estilos permanecen IGUALES
+// Los estilos de FeedScreen (se mantienen igual, solo se añade 'commentStyles')
 const styles = StyleSheet.create({
+  // ... (MANTENER TODOS LOS ESTILOS EXISTENTES PARA FeedScreen, PostCard, CreatePostModal)
   container: {
     flex: 1,
     backgroundColor: '#FFF8DC',
@@ -1016,6 +1220,86 @@ const styles = StyleSheet.create({
     backgroundColor: '#8B0000',
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
+  },
+});
+
+// --- NUEVOS ESTILOS PARA COMMENT MODAL ---
+const commentStyles = StyleSheet.create({
+  modalOverlay: styles.modalOverlay,
+  modalContainer: {
+    ...styles.modalContainer,
+    minHeight: '50%', // Ajuste para comentarios
+  },
+  modalHeader: styles.modalHeader,
+  modalHeaderButton: styles.modalHeaderButton,
+  modalTitle: styles.modalTitle,
+  
+  commentsList: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  commentItem: {
+    backgroundColor: '#FFF',
+    padding: 10,
+    borderRadius: 8,
+    marginVertical: 5,
+    borderLeftWidth: 3,
+    borderLeftColor: '#FFA500',
+  },
+  commentUser: {
+    fontWeight: 'bold',
+    color: '#8B0000',
+    marginBottom: 2,
+    fontSize: 14,
+  },
+  commentText: {
+    fontSize: 15,
+    color: '#333',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 50,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: '#999',
+    marginTop: 10,
+    textAlign: 'center',
+  },
+
+  commentInputContainer: {
+    flexDirection: 'row',
+    padding: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+    alignItems: 'flex-end',
+    backgroundColor: '#F9F9F9',
+  },
+  commentInput: {
+    flex: 1,
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    maxHeight: 100,
+    minHeight: 40,
+    fontSize: 16,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#DDD',
+    textAlignVertical: 'center', // Para Android
+  },
+  sendButton: {
+    backgroundColor: '#8B0000',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  disabledSendButton: {
+    opacity: 0.5,
   },
 });
 
