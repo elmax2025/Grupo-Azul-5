@@ -1,169 +1,418 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
-  StatusBar,
+  ScrollView,
+  TouchableOpacity,
+  Switch,
+  Alert,
+  Vibration,
 } from 'react-native';
 
-export default function AccesibilidadPantalla({ navigation }) {
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor="#000" barStyle="light-content" />
-      
-      {/* Header */}
-      <View style={styles.header}>
-  <TouchableOpacity 
-    style={styles.backButton}
-    onPress={() => navigation.goBack()}
-  >
-    <Text style={styles.backArrow}>&lt;</Text>
-  </TouchableOpacity>
-  <View style={styles.titleContainer}>
-    <Text style={styles.title}>Accesibilidad, Pantalla e Idiomas</Text>
-  </View>
-</View>
+const Accesibilidad = ({ navigation }) => {
+  // Estados básicos de accesibilidad
+  const [settings, setSettings] = useState({
+    darkMode: false,
+    largeText: false,
+    boldText: false,
+    highContrast: false,
+    textToSpeech: false,
+    hapticFeedback: true,
+    soundNotifications: true,
+    simplifiedLayout: false,
+    reduceMotion: false,
+  });
 
-      {/* Subsection Menu */}
-      <View style={styles.menuContainer}>
-        <TouchableOpacity style={styles.menuItem}>
-          <View style={[styles.subIconContainer, { backgroundColor: '#8B0000' }]}>
-            <Text style={styles.subIconText}>🌐</Text>
-          </View>
-          <Text style={styles.menuText}> 🌐 Idiomas</Text>
-        </TouchableOpacity>
+  const [fontSize, setFontSize] = useState(16);
 
-        <TouchableOpacity style={styles.menuItem}>
-          <View style={[styles.subIconContainer, { backgroundColor: 'transparent' }]}>
-            <Text style={styles.subIconText}>👁️</Text>
-          </View>
-          <Text style={styles.menuText}>Accesibilidad</Text>
-        </TouchableOpacity>
+  const handleToggle = (setting) => {
+    setSettings(prev => ({
+      ...prev,
+      [setting]: !prev[setting]
+    }));
+    
+    // Feedback de vibración
+    if (settings.hapticFeedback) {
+      Vibration.vibrate(50);
+    }
+  };
 
-        <TouchableOpacity style={styles.menuItem}>
-          <View style={[styles.subIconContainer, { backgroundColor: 'transparent' }]}>
-            <Text style={styles.subIconText}>✏️</Text>
-          </View>
-          <Text style={styles.menuText}>Pantalla</Text>
-        </TouchableOpacity>
+  const testHapticFeedback = () => {
+    Vibration.vibrate(100);
+  };
+
+  const testSoundNotification = () => {
+    if (settings.soundNotifications) {
+      Vibration.vibrate(200);
+      Alert.alert('Notificación de prueba', '🔊 Sonido de notificación');
+    }
+  };
+
+  const testVoiceCommands = () => {
+    Alert.alert(
+      'Comandos de Voz',
+      'Activa "Texto a Voz" para usar comandos de voz en la aplicación.',
+      [{ text: 'Entendido' }]
+    );
+  };
+
+  const OptionItem = ({ title, description, value, onToggle, showTest = false, testAction }) => (
+    <View style={styles.option}>
+      <View style={styles.optionText}>
+        <Text style={[
+          styles.optionTitle,
+          settings.largeText && { fontSize: 18 },
+          settings.boldText && { fontWeight: 'bold' }
+        ]}>
+          {title}
+        </Text>
+        <Text style={[
+          styles.optionDescription,
+          settings.largeText && { fontSize: 14 }
+        ]}>
+          {description}
+        </Text>
       </View>
-    </SafeAreaView>
+      
+      <View style={styles.optionRight}>
+        <Switch
+          value={value}
+          onValueChange={onToggle}
+          trackColor={{ false: '#767577', true: '#81b0ff' }}
+          thumbColor={value ? '#f5dd4b' : '#f4f3f4'}
+        />
+        
+        {showTest && value && (
+          <TouchableOpacity onPress={testAction} style={styles.testButton}>
+            <Text style={styles.testText}>Probar</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
   );
-}
+
+  const Section = ({ title, children }) => (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {children}
+    </View>
+  );
+
+  return (
+    <View style={[
+      styles.container,
+      settings.darkMode && styles.darkContainer,
+      settings.highContrast && styles.highContrastContainer
+    ]}>
+      {/* Header Simple */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Text style={styles.backText}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Accesibilidad</Text>
+      </View>
+
+      <ScrollView style={styles.scrollView}>
+        {/* VISIÓN */}
+        <Section title="Visión">
+          <OptionItem
+            title="Modo Oscuro"
+            description="Fondo oscuro para reducir fatiga visual"
+            value={settings.darkMode}
+            onToggle={() => handleToggle('darkMode')}
+          />
+
+          <OptionItem
+            title="Texto Grande"
+            description="Aumenta el tamaño del texto"
+            value={settings.largeText}
+            onToggle={() => handleToggle('largeText')}
+          />
+
+          <OptionItem
+            title="Texto en Negrita"
+            description="Texto más grueso para mejor legibilidad"
+            value={settings.boldText}
+            onToggle={() => handleToggle('boldText')}
+          />
+
+          <OptionItem
+            title="Alto Contraste"
+            description="Mejora el contraste de colores"
+            value={settings.highContrast}
+            onToggle={() => handleToggle('highContrast')}
+          />
+
+          {/* Control de tamaño de texto manual */}
+          <View style={styles.sizeControl}>
+            <Text style={styles.sizeLabel}>Tamaño de texto: {fontSize}px</Text>
+            <View style={styles.sizeButtons}>
+              <TouchableOpacity 
+                style={styles.sizeButton}
+                onPress={() => setFontSize(Math.max(12, fontSize - 2))}
+              >
+                <Text style={styles.sizeButtonText}>A-</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.sizeButton}
+                onPress={() => setFontSize(Math.min(24, fontSize + 2))}
+              >
+                <Text style={styles.sizeButtonText}>A+</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Section>
+
+        {/* AUDIO */}
+        <Section title="Audio">
+          <OptionItem
+            title="Notificaciones de Sonido"
+            description="Sonidos para alertas importantes"
+            value={settings.soundNotifications}
+            onToggle={() => handleToggle('soundNotifications')}
+            showTest={true}
+            testAction={testSoundNotification}
+          />
+
+          <OptionItem
+            title="Texto a Voz"
+            description="Lee el contenido en voz alta"
+            value={settings.textToSpeech}
+            onToggle={() => handleToggle('textToSpeech')}
+            showTest={true}
+            testAction={testVoiceCommands}
+          />
+        </Section>
+
+        {/* INTERACCIÓN */}
+        <Section title="Interacción">
+          <OptionItem
+            title="Feedback Háptico"
+            description="Vibraciones al interactuar"
+            value={settings.hapticFeedback}
+            onToggle={() => handleToggle('hapticFeedback')}
+            showTest={true}
+            testAction={testHapticFeedback}
+          />
+
+          <OptionItem
+            title="Reducir Animaciones"
+            description="Minimiza movimientos en la interfaz"
+            value={settings.reduceMotion}
+            onToggle={() => handleToggle('reduceMotion')}
+          />
+
+          <OptionItem
+            title="Diseño Simplificado"
+            description="Interfaz más simple y limpia"
+            value={settings.simplifiedLayout}
+            onToggle={() => handleToggle('simplifiedLayout')}
+          />
+        </Section>
+
+        {/* ACCIONES RÁPIDAS */}
+        <Section title="Acciones Rápidas">
+          <View style={styles.quickActions}>
+            <TouchableOpacity 
+              style={styles.quickButton}
+              onPress={() => {
+                setSettings({
+                  ...settings,
+                  largeText: true,
+                  boldText: true,
+                  highContrast: true
+                });
+                Alert.alert('Modo activado', 'Alta visibilidad activada');
+              }}
+            >
+              <Text style={styles.quickButtonText}>Alta Visibilidad</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.quickButton}
+              onPress={() => {
+                setSettings({
+                  darkMode: false,
+                  largeText: false,
+                  boldText: false,
+                  highContrast: false,
+                  textToSpeech: false,
+                  simplifiedLayout: false
+                });
+                setFontSize(16);
+                Alert.alert('Configuración restablecida');
+              }}
+            >
+              <Text style={styles.quickButtonText}>Restablecer</Text>
+            </TouchableOpacity>
+          </View>
+        </Section>
+
+        {/* INFORMACIÓN */}
+        <View style={styles.infoSection}>
+          <Text style={styles.infoTitle}>Configuración Activada</Text>
+          <Text style={styles.infoText}>
+            {Object.values(settings).filter(Boolean).length} de {Object.values(settings).length} opciones
+          </Text>
+        </View>
+      </ScrollView>
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#f5f5f5',
+  },
+  darkContainer: {
+    backgroundColor: '#1a1a1a',
+  },
+  highContrastContainer: {
+    backgroundColor: '#000000',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    backgroundColor: '#8B0000',
+    paddingHorizontal: 15,
     paddingVertical: 15,
-    marginTop: 10,
   },
   backButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 20,
-    backgroundColor: '#D2B48C',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 15,
+    padding: 5,
+    marginRight: 10,
   },
-  backArrow: {
-    fontSize: 30,
-    color: '#8B0000',
+  backText: {
+    fontSize: 20,
+    color: '#FFFFFF',
     fontWeight: 'bold',
   },
-  titleContainer: {
-    backgroundColor: '#D2B48C',
-    paddingHorizontal: 30,
-    paddingVertical: 12,
-    borderRadius: 25,
-    flex: 1,
-    marginRight: 15,
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
-  title: {
-    fontSize: 17,
-    fontWeight: '600',
+  scrollView: {
+    flex: 1,
+    padding: 15,
+  },
+  section: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
     color: '#8B0000',
-    textAlign: 'center',
-    fontStyle: 'cursive',
+    marginBottom: 10,
   },
-  menuButton: {
-    backgroundColor: '#8B0000',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  menuDots: {
+  option: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
-  dot: {
-    width: 4,
-    height: 4,
-    backgroundColor: '#fff',
-    borderRadius: 2,
-    marginHorizontal: 2,
-  },
-  selectedSection: {
-    backgroundColor: '#8B0000',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    marginHorizontal: 20,
-    marginTop: 20,
-    borderRadius: 8,
-  },
-  iconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 20,
-  },
-  iconText: {
-    fontSize: 24,
-  },
-  selectedText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  menuContainer: {
+  optionText: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 30,
+    marginRight: 10,
   },
-  menuItem: {
+  optionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  optionDescription: {
+    fontSize: 12,
+    color: '#666',
+  },
+  optionRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 20,
   },
-  subIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 20,
+  testButton: {
+    backgroundColor: '#8B0000',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 5,
+    marginLeft: 10,
   },
-  subIconText: {
-    fontSize: 24,
-  },
-  menuText: {
-    fontSize: 18,
+  testText: {
+    color: '#FFFFFF',
+    fontSize: 12,
     fontWeight: '600',
-    color: '#fff',
+  },
+  sizeControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 15,
+  },
+  sizeLabel: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '600',
+  },
+  sizeButtons: {
+    flexDirection: 'row',
+  },
+  sizeButton: {
+    backgroundColor: '#8B0000',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 5,
+    marginLeft: 5,
+  },
+  sizeButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  quickActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  quickButton: {
+    backgroundColor: '#8B0000',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 8,
+    flex: 1,
+    marginHorizontal: 5,
+    alignItems: 'center',
+  },
+  quickButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  infoSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 15,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#8B0000',
+    marginBottom: 5,
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#666',
   },
 });
+
+export default Accesibilidad;
