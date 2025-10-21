@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { 
   collection, 
   addDoc, 
@@ -28,18 +29,230 @@ import {
   setDoc,
   getDoc,
   getDocs,
-  serverTimestamp,
-  orderBy 
+  serverTimestamp
 } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 // IMPORTACIÓN CORREGIDA - desde la carpeta firebase/config
 import { db, auth } from '../../firebase/config';
 
-// Inicializar Firebase Storage
-const storage = getStorage();
+// --- COMPONENTE: Modal de Preguntas Frecuentes ---
+const FAQModal = ({ visible, onClose }) => {
+  const [expandedQuestion, setExpandedQuestion] = useState(null);
 
-// --- NUEVO COMPONENTE: Modal de Categorías de Preferencia ---
+  const faqData = [
+    {
+      id: 1,
+      question: "¿Cómo cambio mi foto de perfil?",
+      answer: "Ve a 'Editar Perfil' y toca tu foto de perfil. Podrás seleccionar una imagen desde tu galería para establecerla como tu foto de perfil."
+    },
+    {
+      id: 2,
+      question: "¿Cómo creo una publicación?",
+      answer: "Presiona el botón 'Crear' en la parte inferior derecha de tu pantalla. Completa el título, descripción y opcionalmente agrega una imagen URL."
+    },
+    {
+      id: 3,
+      question: "¿Puedo editar o eliminar mis publicaciones?",
+      answer: "Sí, solo tus publicaciones muestran el icono de eliminar (🗑️). Toca ese icono para eliminar una publicación. Actualmente la edición no está disponible."
+    },
+    {
+      id: 4,
+      question: "¿Cómo funcionan los likes en las publicaciones?",
+      answer: "Toca el icono de corazón en cualquier publicación para dar like. El contador muestra cuántos likes tiene esa publicación."
+    },
+    {
+      id: 5,
+      question: "¿Qué son las categorías de preferencia?",
+      answer: "Son intereses que seleccionas para personalizar tu feed. Ve a 'Categorías de Preferencia' y selecciona los temas que te interesan."
+    },
+    {
+      id: 6,
+      question: "¿Cómo busco publicaciones específicas?",
+      answer: "Usa el icono de lupa en el header para búsqueda avanzada. Puedes buscar por título, descripción o fecha de publicación."
+    },
+    {
+      id: 7,
+      question: "¿Puedo seguir a otros usuarios?",
+      answer: "Sí, visita perfiles de otros usuarios y usa el botón 'Seguir'. Puedes ver tus seguidores y seguidos en tu perfil."
+    },
+    {
+      id: 8,
+      question: "¿Cómo cambio mi nombre o descripción?",
+      answer: "Ve a 'Editar Perfil' y modifica tu nombre y descripción en los campos correspondientes. Guarda los cambios al finalizar."
+    },
+    {
+      id: 9,
+      question: "¿Qué hago si olvidé mi contraseña?",
+      answer: "En la pantalla de inicio de sesión, toca '¿Olvidaste tu contraseña?' para restablecerla mediante tu email."
+    },
+    {
+      id: 10,
+      question: "¿La app es gratuita?",
+      answer: "Sí, Spaghetti es completamente gratuita. No tenemos planes de pago actualmente."
+    },
+    {
+      id: 11,
+      question: "¿Cómo reporto un problema o bug?",
+      answer: "Puedes contactarnos mediante el formulario de soporte en Configuración o enviar un email a soporte@spaghetti.com"
+    },
+    {
+      id: 12,
+      question: "¿Puedo usar imágenes desde mi dispositivo?",
+      answer: "Sí, para tu foto de perfil puedes seleccionar imágenes desde tu galería. Para publicaciones, actualmente necesitas una URL de imagen."
+    }
+  ];
+
+  const toggleQuestion = (questionId) => {
+    setExpandedQuestion(expandedQuestion === questionId ? null : questionId);
+  };
+
+  const renderFAQItem = ({ item }) => (
+    <View style={faqStyles.faqItem}>
+      <TouchableOpacity 
+        style={faqStyles.questionContainer}
+        onPress={() => toggleQuestion(item.id)}
+      >
+        <Text style={faqStyles.questionText}>{item.question}</Text>
+        <Ionicons 
+          name={expandedQuestion === item.id ? "chevron-up" : "chevron-down"} 
+          size={20} 
+          color="#8B0000" 
+        />
+      </TouchableOpacity>
+      
+      {expandedQuestion === item.id && (
+        <View style={faqStyles.answerContainer}>
+          <Text style={faqStyles.answerText}>{item.answer}</Text>
+        </View>
+      )}
+    </View>
+  );
+
+  return (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={visible}
+      onRequestClose={onClose}
+    >
+      <View style={faqStyles.modalOverlay}>
+        <View style={faqStyles.modalContainer}>
+          <View style={faqStyles.modalHeader}>
+            <TouchableOpacity onPress={onClose} style={faqStyles.modalHeaderButton}>
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+            <Text style={faqStyles.modalTitle}>Preguntas Frecuentes</Text>
+            <View style={{ width: 44 }} />
+          </View>
+
+          <View style={faqStyles.headerSection}>
+            <Ionicons name="help-circle" size={50} color="#8B0000" />
+            <Text style={faqStyles.headerTitle}>Centro de Ayuda</Text>
+            <Text style={faqStyles.headerSubtitle}>
+              Encuentra respuestas a las preguntas más comunes sobre Spaghetti
+            </Text>
+          </View>
+
+          <FlatList
+            data={faqData}
+            renderItem={renderFAQItem}
+            keyExtractor={item => item.id.toString()}
+            style={faqStyles.faqList}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={faqStyles.faqContent}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// --- COMPONENTE: Menu de Tres Puntos ---
+const OptionsMenu = ({ visible, onClose, onFAQPress }) => {
+  const menuOptions = [
+    {
+      id: 1,
+      title: "Preguntas Frecuentes",
+      icon: "help-circle",
+      color: "#8B0000",
+      onPress: onFAQPress
+    },
+    {
+      id: 2,
+      title: "Cerrar Sesión",
+      icon: "log-out",
+      color: "#8B0000",
+      onPress: () => {
+        Alert.alert(
+          "Cerrar Sesión",
+          "¿Estás seguro de que quieres cerrar sesión?",
+          [
+            { text: "Cancelar", style: "cancel" },
+            { 
+              text: "Cerrar Sesión", 
+              style: "destructive",
+              onPress: () => {
+                auth.signOut();
+                onClose();
+              }
+            }
+          ]
+        );
+      }
+    }
+  ];
+
+  const renderMenuItem = ({ item }) => (
+    <TouchableOpacity 
+      style={menuStyles.menuItem}
+      onPress={() => {
+        item.onPress();
+        onClose();
+      }}
+    >
+      <View style={[menuStyles.menuIcon, { backgroundColor: `${item.color}20` }]}>
+        <Ionicons name={item.icon} size={22} color={item.color} />
+      </View>
+      <Text style={menuStyles.menuText}>{item.title}</Text>
+      <Ionicons name="chevron-forward" size={16} color="#666" />
+    </TouchableOpacity>
+  );
+
+  if (!visible) return null;
+
+  return (
+    <Modal
+      animationType="fade"
+      transparent={true}
+      visible={visible}
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity 
+        style={menuStyles.overlay}
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        <View style={menuStyles.menuContainer}>
+          <View style={menuStyles.menuHeader}>
+            <Text style={menuStyles.menuTitle}>Opciones</Text>
+            <TouchableOpacity onPress={onClose} style={menuStyles.closeButton}>
+              <Ionicons name="close" size={20} color="#666" />
+            </TouchableOpacity>
+          </View>
+          
+          <FlatList
+            data={menuOptions}
+            renderItem={renderMenuItem}
+            keyExtractor={item => item.id.toString()}
+            scrollEnabled={false}
+          />
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+};
+
+// --- COMPONENTE: Modal de Categorías de Preferencia ---
 const CategoriesModal = ({ visible, onClose, onSave, userCategories }) => {
   const [selectedCategories, setSelectedCategories] = useState(userCategories || []);
   
@@ -173,7 +386,7 @@ const CategoriesModal = ({ visible, onClose, onSave, userCategories }) => {
   );
 };
 
-// --- NUEVO COMPONENTE: Modal de Búsqueda Avanzada ---
+// --- COMPONENTE: Modal de Búsqueda Avanzada ---
 const AdvancedSearchModal = ({ visible, onClose, onSearch, posts }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchType, setSearchType] = useState('title'); // 'title', 'description', 'date'
@@ -431,7 +644,7 @@ const AdvancedSearchModal = ({ visible, onClose, onSearch, posts }) => {
   );
 };
 
-// --- COMPONENTE ACTUALIZADO: Modal para listar Seguidos/Seguidores ---
+// --- COMPONENTE: Modal para listar Seguidos/Seguidores ---
 const FollowModal = ({ visible, onClose, type, users, currentUserId, navigation }) => {
   const handleViewProfile = (userId) => {
     onClose();
@@ -553,7 +766,7 @@ const PostCard = ({ post, onLike, onTag, onComment, onDelete, isOwner }) => (
   </View>
 );
 
-// Modal para Editar Perfil - ACTUALIZADO CON SUBIDA DE FOTOS
+// Modal para Editar Perfil - CON BASE64
 const EditProfileModal = ({ visible, onClose, onSave, currentProfile, onImagePick }) => {
   const [name, setName] = useState(currentProfile.name);
   const [description, setDescription] = useState(currentProfile.description);
@@ -585,9 +798,9 @@ const EditProfileModal = ({ visible, onClose, onSave, currentProfile, onImagePic
   const handleImagePick = async () => {
     try {
       setIsUploading(true);
-      const imageUrl = await onImagePick();
-      if (imageUrl) {
-        setAvatar(imageUrl);
+      const imageBase64 = await onImagePick();
+      if (imageBase64) {
+        setAvatar(imageBase64);
       }
     } catch (error) {
       console.error('Error seleccionando imagen:', error);
@@ -636,7 +849,7 @@ const EditProfileModal = ({ visible, onClose, onSave, currentProfile, onImagePic
                 </View>
               </TouchableOpacity>
               <Text style={styles.avatarHelpText}>
-                {isUploading ? 'Subiendo imagen...' : 'Toca para cambiar foto'}
+                {isUploading ? 'Procesando imagen...' : 'Toca para cambiar foto'}
               </Text>
             </View>
 
@@ -789,13 +1002,15 @@ const CreatePostModal = ({ visible, onClose, onCreate }) => {
   );
 };
 
-// Pantalla de Perfil - ACTUALIZADA CON SUBIDA DE FOTOS
+// Pantalla de Perfil
 const ProfileScreen = ({ navigation }) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showFollowModal, setShowFollowModal] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
+  const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const [showFAQModal, setShowFAQModal] = useState(false);
   const [followModalType, setFollowModalType] = useState('following');
   const [posts, setPosts] = useState([]);
   const [filteredPosts, setFilteredPosts] = useState([]);
@@ -830,62 +1045,64 @@ const ProfileScreen = ({ navigation }) => {
     loadUserCategories();
   }, []);
 
-  // Función para subir imagen a Firebase Storage
-  const uploadImageToFirebase = async (uri) => {
-    try {
-      const user = auth.currentUser;
-      if (!user) throw new Error('Usuario no autenticado');
-
-      // Convertir URI a blob
-      const response = await fetch(uri);
-      const blob = await response.blob();
-
-      // Crear referencia única para la imagen
-      const imageRef = ref(storage, `profile_pictures/${user.uid}_${Date.now()}.jpg`);
-
-      // Subir imagen
-      const snapshot = await uploadBytes(imageRef, blob);
-      
-      // Obtener URL de descarga
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      
-      return downloadURL;
-    } catch (error) {
-      console.error('Error subiendo imagen:', error);
-      throw error;
+  // Función para convertir imagen a Base64
+const convertImageToBase64 = async (uri) => {
+  try {
+    // SOLUCIÓN: Usar FileSystem.EncodingType.Base64 o simplemente 'base64'
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64 || 'base64',
+    });
+    
+    // Obtener el tipo MIME de la imagen
+    const fileInfo = await FileSystem.getInfoAsync(uri);
+    let mimeType = 'image/jpeg'; // Por defecto
+    
+    if (fileInfo.uri && fileInfo.uri.includes('.')) {
+      const extension = fileInfo.uri.split('.').pop().toLowerCase();
+      if (extension === 'png') mimeType = 'image/png';
+      else if (extension === 'gif') mimeType = 'image/gif';
+      else if (extension === 'webp') mimeType = 'image/webp';
     }
-  };
+    
+    // Crear el data URI con el tipo MIME correcto
+    const imageBase64 = `data:${mimeType};base64,${base64}`;
+    return imageBase64;
+  } catch (error) {
+    console.error('Error convirtiendo imagen a Base64:', error);
+    throw error;
+  }
+};
 
-  // Función para seleccionar imagen de la galería
+  // Función para seleccionar imagen de la galería y convertir a Base64
   const handleImagePick = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 0.7, // Calidad reducida para evitar archivos muy grandes
       });
 
       if (!result.canceled && result.assets && result.assets[0].uri) {
         setIsUploading(true);
         
-        // Subir imagen a Firebase Storage
-        const imageUrl = await uploadImageToFirebase(result.assets[0].uri);
+        // Convertir imagen a Base64
+        const imageBase64 = await convertImageToBase64(result.assets[0].uri);
         
-        Alert.alert('¡Éxito!', 'Foto de perfil subida correctamente');
-        return imageUrl;
+        Alert.alert('¡Éxito!', 'Foto de perfil actualizada correctamente');
+        return imageBase64;
       }
       return null;
     } catch (error) {
       console.error('Error seleccionando imagen:', error);
-      Alert.alert('Error', 'No se pudo subir la imagen. Intenta de nuevo.');
+      Alert.alert('Error', 'No se pudo procesar la imagen. Intenta con una imagen más pequeña.');
       return null;
     } finally {
       setIsUploading(false);
     }
   };
 
-  // NUEVA FUNCIÓN: Cargar categorías del usuario
+  // Cargar categorías del usuario
   const loadUserCategories = async () => {
     try {
       if (!currentUserId) return;
@@ -902,7 +1119,7 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
-  // NUEVA FUNCIÓN: Guardar categorías del usuario
+  // Guardar categorías del usuario
   const handleSaveCategories = async (categories) => {
     try {
       if (!currentUserId) {
@@ -925,12 +1142,12 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
-  // NUEVA FUNCIÓN: Manejar resultado de búsqueda
+  // Manejar resultado de búsqueda
   const handleSearchResult = (post) => {
     setFilteredPosts([post]);
   };
 
-  // NUEVA FUNCIÓN: Restablecer vista normal
+  // Restablecer vista normal
   const resetPostsView = () => {
     setFilteredPosts([]);
   };
@@ -1050,7 +1267,6 @@ const ProfileScreen = ({ navigation }) => {
       return;
     }
 
-    // CONSULTA SIN ORDERBY PARA EVITAR EL ERROR DE ÍNDICE
     const postsQuery = query(
       collection(db, 'Spaghetti/Publicaciones/Publicaciones'),
       where('userId', '==', user.uid)
@@ -1062,19 +1278,19 @@ const ProfileScreen = ({ navigation }) => {
         ...doc.data()
       }));
       
-      // ORDENAMIENTO LOCAL - Esto evita el error de índice
+      // ORDENAMIENTO LOCAL
       postsData.sort((a, b) => {
         try {
           const dateA = a.Fecha_publicacion ? a.Fecha_publicacion.toDate() : new Date(0);
           const dateB = b.Fecha_publicacion ? b.Fecha_publicacion.toDate() : new Date(0);
-          return dateB - dateA; // Más reciente primero
+          return dateB - dateA;
         } catch (error) {
-          return 0; // Si hay error, no cambiar orden
+          return 0;
         }
       });
       
       setPosts(postsData);
-      setFilteredPosts([]); // Resetear filtros cuando se cargan nuevos posts
+      setFilteredPosts([]);
     }, (error) => {
       console.error('Error obteniendo posts:', error);
       Alert.alert('Error', 'No se pudieron cargar las publicaciones');
@@ -1212,7 +1428,7 @@ const ProfileScreen = ({ navigation }) => {
     setShowFollowModal(false);
   };
 
-  // NUEVA FUNCIÓN: Manejar búsqueda avanzada
+  // Manejar búsqueda avanzada
   const handleAdvancedSearch = () => {
     setShowSearchModal(true);
   };
@@ -1221,13 +1437,31 @@ const ProfileScreen = ({ navigation }) => {
     setShowSearchModal(false);
   };
 
-  // NUEVA FUNCIÓN: Manejar categorías
+  // Manejar categorías
   const handleCategoriesPress = () => {
     setShowCategoriesModal(true);
   };
 
   const handleCloseCategoriesModal = () => {
     setShowCategoriesModal(false);
+  };
+
+  // NUEVAS FUNCIONES PARA MANEJAR LOS MODALES
+  const handleOptionsMenuPress = () => {
+    setShowOptionsMenu(true);
+  };
+
+  const handleCloseOptionsMenu = () => {
+    setShowOptionsMenu(false);
+  };
+
+  const handleFAQPress = () => {
+    setShowFAQModal(true);
+    setShowOptionsMenu(false);
+  };
+
+  const handleCloseFAQModal = () => {
+    setShowFAQModal(false);
   };
 
   // Determinar qué posts mostrar (todos o filtrados)
@@ -1251,7 +1485,11 @@ const ProfileScreen = ({ navigation }) => {
           >
             <Ionicons name="search" size={24} color="#fff" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerButton}>
+          {/* BOTÓN DE TRES PUNTOS ACTUALIZADO */}
+          <TouchableOpacity 
+            style={styles.headerButton}
+            onPress={handleOptionsMenuPress}
+          >
             <Ionicons name="ellipsis-horizontal" size={24} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -1281,7 +1519,7 @@ const ProfileScreen = ({ navigation }) => {
             <Text style={styles.editButtonText}>Editar Perfil</Text>
           </TouchableOpacity>
 
-          {/* NUEVO BOTÓN: Categorías de Preferencia */}
+          {/* BOTÓN: Categorías de Preferencia */}
           <TouchableOpacity 
             style={styles.categoriesButton}
             onPress={handleCategoriesPress}
@@ -1363,7 +1601,7 @@ const ProfileScreen = ({ navigation }) => {
         </View>
       </TouchableOpacity>
 
-      {/* Modal para Editar Perfil - ACTUALIZADO */}
+      {/* Modal para Editar Perfil */}
       <EditProfileModal
         visible={showEditModal}
         onClose={() => setShowEditModal(false)}
@@ -1379,7 +1617,7 @@ const ProfileScreen = ({ navigation }) => {
         onCreate={handleCreatePost}
       />
 
-      {/* Modal: Seguidos/Seguidores ACTUALIZADO */}
+      {/* Modal: Seguidos/Seguidores */}
       <FollowModal
         visible={showFollowModal}
         onClose={handleCloseFollowModal}
@@ -1389,7 +1627,7 @@ const ProfileScreen = ({ navigation }) => {
         navigation={navigation}
       />
 
-      {/* NUEVO MODAL: Categorías de Preferencia */}
+      {/* Modal: Categorías de Preferencia */}
       <CategoriesModal
         visible={showCategoriesModal}
         onClose={handleCloseCategoriesModal}
@@ -1397,12 +1635,25 @@ const ProfileScreen = ({ navigation }) => {
         userCategories={userCategories}
       />
 
-      {/* NUEVO MODAL: Búsqueda Avanzada */}
+      {/* Modal: Búsqueda Avanzada */}
       <AdvancedSearchModal
         visible={showSearchModal}
         onClose={handleCloseSearchModal}
         onSearch={handleSearchResult}
         posts={posts}
+      />
+
+      {/* MODAL: Menu de Opciones */}
+      <OptionsMenu
+        visible={showOptionsMenu}
+        onClose={handleCloseOptionsMenu}
+        onFAQPress={handleFAQPress}
+      />
+
+      {/* MODAL: Preguntas Frecuentes */}
+      <FAQModal
+        visible={showFAQModal}
+        onClose={handleCloseFAQModal}
       />
 
       {/* Bottom Wave */}
@@ -1411,7 +1662,9 @@ const ProfileScreen = ({ navigation }) => {
   );
 };
 
-// Estilos actualizados para los botones de seguimiento Y SUBIDA DE FOTOS
+// ... (los estilos se mantienen exactamente igual que en tu código anterior)
+
+// Estilos principales (se mantienen igual)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1440,8 +1693,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   profileAvatar: {
-    width: 120, // Aumentado para mejor visualización
-    height: 120, // Aumentado para mejor visualización
+    width: 120,
+    height: 120,
     borderRadius: 60,
     backgroundColor: '#FFF',
     justifyContent: 'center',
@@ -1484,7 +1737,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-  // NUEVO ESTILO: Botón de categorías
   categoriesButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1525,7 +1777,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-  // NUEVO ESTILO: Indicador de búsqueda
   searchIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1543,7 +1794,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
-  // NUEVOS ESTILOS PARA SUBIDA DE FOTOS
   avatarUploadButton: {
     position: 'relative',
     alignItems: 'center',
@@ -1781,7 +2031,166 @@ const styles = StyleSheet.create({
   },
 });
 
-// --- NUEVOS ESTILOS PARA EL MODAL DE CATEGORÍAS ---
+// ... (los demás estilos: faqStyles, menuStyles, categoriesStyles, searchStyles, followStyles se mantienen igual)
+
+// Estilos para el Modal de Preguntas Frecuentes
+const faqStyles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#FFF8DC',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+    minHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  modalHeaderButton: {
+    padding: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  headerSection: {
+    alignItems: 'center',
+    paddingVertical: 25,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 10,
+    marginBottom: 5,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  faqList: {
+    flex: 1,
+  },
+  faqContent: {
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+  },
+  faqItem: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    marginBottom: 10,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    overflow: 'hidden',
+  },
+  questionContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 15,
+  },
+  questionText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginRight: 10,
+  },
+  answerContainer: {
+    backgroundColor: '#F8F8F8',
+    padding: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+  },
+  answerText: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+  },
+});
+
+// Estilos para el Menú de Opciones
+const menuStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 60,
+    paddingRight: 20,
+  },
+  menuContainer: {
+    backgroundColor: '#FFF',
+    borderRadius: 15,
+    width: 250,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    overflow: 'hidden',
+  },
+  menuHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  menuTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  closeButton: {
+    padding: 5,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8F8F8',
+  },
+  menuIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  menuText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+  },
+});
+
+// Estilos para el Modal de Categorías
 const categoriesStyles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
@@ -1904,7 +2313,7 @@ const categoriesStyles = StyleSheet.create({
   },
 });
 
-// --- NUEVOS ESTILOS PARA EL MODAL DE BÚSQUEDA AVANZADA ---
+// Estilos para el Modal de Búsqueda Avanzada
 const searchStyles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
@@ -2092,7 +2501,7 @@ const searchStyles = StyleSheet.create({
   },
 });
 
-// --- ESTILOS ACTUALIZADOS PARA EL MODAL DE SEGUIDOS/SEGUIDORES ---
+// Estilos para el Modal de Seguidos/Seguidores
 const followStyles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
