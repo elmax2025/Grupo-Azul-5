@@ -9,28 +9,19 @@ import {
   Alert,
   Vibration,
 } from 'react-native';
+import { useAccessibility } from '../context/AccesibilityContext'; // Ajusta la ruta
 
 const Accesibilidad = ({ navigation }) => {
-  // Estados básicos de accesibilidad
-  const [settings, setSettings] = useState({
-    darkMode: false,
-    largeText: false,
-    boldText: false,
-    highContrast: false,
-    textToSpeech: false,
-    hapticFeedback: true,
-    soundNotifications: true,
-    simplifiedLayout: false,
-    reduceMotion: false,
-  });
-
-  const [fontSize, setFontSize] = useState(16);
+  const { 
+    settings, 
+    fontSize, 
+    updateSettings, 
+    updateFontSize, 
+    toggleSetting 
+  } = useAccessibility();
 
   const handleToggle = (setting) => {
-    setSettings(prev => ({
-      ...prev,
-      [setting]: !prev[setting]
-    }));
+    toggleSetting(setting);
     
     // Feedback de vibración
     if (settings.hapticFeedback) {
@@ -150,13 +141,13 @@ const Accesibilidad = ({ navigation }) => {
             <View style={styles.sizeButtons}>
               <TouchableOpacity 
                 style={styles.sizeButton}
-                onPress={() => setFontSize(Math.max(12, fontSize - 2))}
+                onPress={() => updateFontSize(Math.max(12, fontSize - 2))}
               >
                 <Text style={styles.sizeButtonText}>A-</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.sizeButton}
-                onPress={() => setFontSize(Math.min(24, fontSize + 2))}
+                onPress={() => updateFontSize(Math.min(24, fontSize + 2))}
               >
                 <Text style={styles.sizeButtonText}>A+</Text>
               </TouchableOpacity>
@@ -217,12 +208,13 @@ const Accesibilidad = ({ navigation }) => {
             <TouchableOpacity 
               style={styles.quickButton}
               onPress={() => {
-                setSettings({
+                const newSettings = {
                   ...settings,
                   largeText: true,
                   boldText: true,
                   highContrast: true
-                });
+                };
+                updateSettings(newSettings);
                 Alert.alert('Modo activado', 'Alta visibilidad activada');
               }}
             >
@@ -232,15 +224,19 @@ const Accesibilidad = ({ navigation }) => {
             <TouchableOpacity 
               style={styles.quickButton}
               onPress={() => {
-                setSettings({
+                const defaultSettings = {
                   darkMode: false,
                   largeText: false,
                   boldText: false,
                   highContrast: false,
                   textToSpeech: false,
-                  simplifiedLayout: false
-                });
-                setFontSize(16);
+                  hapticFeedback: true,
+                  soundNotifications: true,
+                  simplifiedLayout: false,
+                  reduceMotion: false,
+                };
+                updateSettings(defaultSettings);
+                updateFontSize(16);
                 Alert.alert('Configuración restablecida');
               }}
             >
