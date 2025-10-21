@@ -12,8 +12,10 @@ import {
   TextInput,
   Alert,
   FlatList,
+  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { 
   collection, 
   addDoc, 
@@ -29,9 +31,13 @@ import {
   serverTimestamp,
   orderBy 
 } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 // IMPORTACIÓN CORREGIDA - desde la carpeta firebase/config
 import { db, auth } from '../../firebase/config';
+
+// Inicializar Firebase Storage
+const storage = getStorage();
 
 // --- NUEVO COMPONENTE: Modal de Categorías de Preferencia ---
 const CategoriesModal = ({ visible, onClose, onSave, userCategories }) => {
@@ -547,11 +553,12 @@ const PostCard = ({ post, onLike, onTag, onComment, onDelete, isOwner }) => (
   </View>
 );
 
-// Modal para Editar Perfil
-const EditProfileModal = ({ visible, onClose, onSave, currentProfile }) => {
+// Modal para Editar Perfil - ACTUALIZADO CON SUBIDA DE FOTOS
+const EditProfileModal = ({ visible, onClose, onSave, currentProfile, onImagePick }) => {
   const [name, setName] = useState(currentProfile.name);
   const [description, setDescription] = useState(currentProfile.description);
   const [avatar, setAvatar] = useState(currentProfile.avatar);
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleSave = () => {
     if (!name.trim()) {
@@ -562,7 +569,7 @@ const EditProfileModal = ({ visible, onClose, onSave, currentProfile }) => {
     onSave({
       name: name.trim(),
       description: description.trim(),
-      avatar: avatar.trim()
+      avatar: avatar
     });
     
     onClose();
@@ -573,6 +580,20 @@ const EditProfileModal = ({ visible, onClose, onSave, currentProfile }) => {
     setDescription(currentProfile.description);
     setAvatar(currentProfile.avatar);
     onClose();
+  };
+
+  const handleImagePick = async () => {
+    try {
+      setIsUploading(true);
+      const imageUrl = await onImagePick();
+      if (imageUrl) {
+        setAvatar(imageUrl);
+      }
+    } catch (error) {
+      console.error('Error seleccionando imagen:', error);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -596,14 +617,27 @@ const EditProfileModal = ({ visible, onClose, onSave, currentProfile }) => {
 
           <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.avatarPreviewContainer}>
-              <View style={styles.profileAvatar}>
-                {currentProfile.avatar ? (
-                  <Image source={{ uri: currentProfile.avatar }} style={styles.profileAvatarImage} />
-                ) : (
-                  <Ionicons name="person" size={40} color="#8B0000" />
-                )}
-              </View>
-              <Text style={styles.avatarHelpText}>Tu foto de perfil</Text>
+              <TouchableOpacity 
+                style={styles.avatarUploadButton}
+                onPress={handleImagePick}
+                disabled={isUploading}
+              >
+                <View style={styles.profileAvatar}>
+                  {isUploading ? (
+                    <ActivityIndicator size="large" color="#8B0000" />
+                  ) : avatar ? (
+                    <Image source={{ uri: avatar }} style={styles.profileAvatarImage} />
+                  ) : (
+                    <Ionicons name="person" size={40} color="#8B0000" />
+                  )}
+                </View>
+                <View style={styles.cameraIcon}>
+                  <Ionicons name="camera" size={20} color="#FFF" />
+                </View>
+              </TouchableOpacity>
+              <Text style={styles.avatarHelpText}>
+                {isUploading ? 'Subiendo imagen...' : 'Toca para cambiar foto'}
+              </Text>
             </View>
 
             <View style={styles.inputContainer}>
@@ -640,7 +674,7 @@ const EditProfileModal = ({ visible, onClose, onSave, currentProfile }) => {
                 keyboardType="url"
               />
               <Text style={styles.helpText}>
-                Si no agregas una URL, se usará el avatar por defecto
+                O usa el botón de arriba para subir una foto desde tu dispositivo
               </Text>
             </View>
           </ScrollView>
@@ -755,19 +789,20 @@ const CreatePostModal = ({ visible, onClose, onCreate }) => {
   );
 };
 
-// Pantalla de Perfil
+// Pantalla de Perfil - ACTUALIZADA CON SUBIDA DE FOTOS
 const ProfileScreen = ({ navigation }) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showFollowModal, setShowFollowModal] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
-  const [showCategoriesModal, setShowCategoriesModal] = useState(false); // NUEVO ESTADO
+  const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [followModalType, setFollowModalType] = useState('following');
   const [posts, setPosts] = useState([]);
   const [filteredPosts, setFilteredPosts] = useState([]);
   const [following, setFollowing] = useState([]);
   const [followers, setFollowers] = useState([]);
-  const [userCategories, setUserCategories] = useState([]); // NUEVO ESTADO
+  const [userCategories, setUserCategories] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
   const [profile, setProfile] = useState({
     name: 'Nombre',
     description: 'Descripción',
@@ -777,13 +812,78 @@ const ProfileScreen = ({ navigation }) => {
 
   const currentUserId = auth.currentUser?.uid;
 
+  // Solicitar permisos al cargar el componente
+  useEffect(() => {
+    (async () => {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permiso necesario', 'Necesitamos acceso a tu galería para que puedas subir fotos de perfil.');
+      }
+    })();
+  }, []);
+
   // Cargar perfil, publicaciones y datos de seguimiento al iniciar
   useEffect(() => {
     loadProfileFromFirebase();
     loadPostsFromFirebase();
     loadFollowData();
-    loadUserCategories(); // NUEVA FUNCIÓN
+    loadUserCategories();
   }, []);
+
+  // Función para subir imagen a Firebase Storage
+  const uploadImageToFirebase = async (uri) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('Usuario no autenticado');
+
+      // Convertir URI a blob
+      const response = await fetch(uri);
+      const blob = await response.blob();
+
+      // Crear referencia única para la imagen
+      const imageRef = ref(storage, `profile_pictures/${user.uid}_${Date.now()}.jpg`);
+
+      // Subir imagen
+      const snapshot = await uploadBytes(imageRef, blob);
+      
+      // Obtener URL de descarga
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      
+      return downloadURL;
+    } catch (error) {
+      console.error('Error subiendo imagen:', error);
+      throw error;
+    }
+  };
+
+  // Función para seleccionar imagen de la galería
+  const handleImagePick = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0].uri) {
+        setIsUploading(true);
+        
+        // Subir imagen a Firebase Storage
+        const imageUrl = await uploadImageToFirebase(result.assets[0].uri);
+        
+        Alert.alert('¡Éxito!', 'Foto de perfil subida correctamente');
+        return imageUrl;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error seleccionando imagen:', error);
+      Alert.alert('Error', 'No se pudo subir la imagen. Intenta de nuevo.');
+      return null;
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   // NUEVA FUNCIÓN: Cargar categorías del usuario
   const loadUserCategories = async () => {
@@ -928,7 +1028,7 @@ const ProfileScreen = ({ navigation }) => {
           email: user.email,
           fechaCreacion: serverTimestamp(),
           following: [],
-          categories: [] // NUEVO CAMPO
+          categories: []
         });
 
         setProfile(prev => ({
@@ -941,7 +1041,7 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
-  // --- SOLUCIÓN 2 IMPLEMENTADA: Obtener publicaciones del usuario actual ---
+  // Obtener publicaciones del usuario actual
   const loadPostsFromFirebase = () => {
     const user = auth.currentUser;
     if (!user) {
@@ -1161,7 +1261,9 @@ const ProfileScreen = ({ navigation }) => {
         {/* Profile Info */}
         <View style={styles.profileSection}>
           <View style={styles.profileAvatar}>
-            {profile.avatar ? (
+            {isUploading ? (
+              <ActivityIndicator size="large" color="#8B0000" />
+            ) : profile.avatar ? (
               <Image source={{ uri: profile.avatar }} style={styles.profileAvatarImage} />
             ) : (
               <Ionicons name="person" size={40} color="#8B0000" />
@@ -1261,11 +1363,12 @@ const ProfileScreen = ({ navigation }) => {
         </View>
       </TouchableOpacity>
 
-      {/* Modal para Editar Perfil */}
+      {/* Modal para Editar Perfil - ACTUALIZADO */}
       <EditProfileModal
         visible={showEditModal}
         onClose={() => setShowEditModal(false)}
         onSave={handleSaveProfile}
+        onImagePick={handleImagePick}
         currentProfile={profile}
       />
 
@@ -1308,7 +1411,7 @@ const ProfileScreen = ({ navigation }) => {
   );
 };
 
-// Estilos actualizados para los botones de seguimiento
+// Estilos actualizados para los botones de seguimiento Y SUBIDA DE FOTOS
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1337,9 +1440,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   profileAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 120, // Aumentado para mejor visualización
+    height: 120, // Aumentado para mejor visualización
+    borderRadius: 60,
     backgroundColor: '#FFF',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1439,6 +1542,24 @@ const styles = StyleSheet.create({
     color: '#8B0000',
     fontSize: 12,
     fontWeight: '500',
+  },
+  // NUEVOS ESTILOS PARA SUBIDA DE FOTOS
+  avatarUploadButton: {
+    position: 'relative',
+    alignItems: 'center',
+  },
+  cameraIcon: {
+    position: 'absolute',
+    bottom: 5,
+    right: 5,
+    backgroundColor: '#8B0000',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFF',
   },
   postCard: {
     backgroundColor: '#FFF',
