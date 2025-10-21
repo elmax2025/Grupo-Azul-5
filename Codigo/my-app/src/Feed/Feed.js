@@ -12,9 +12,10 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
-  FlatList, // Importado para la lista de comentarios
-  KeyboardAvoidingView, // Importado para el input de comentario
-  Platform, // Importado para KeyboardAvoidingView
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  Vibration,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -32,9 +33,11 @@ import {
   arrayRemove,
 } from 'firebase/firestore';
 import { db, auth } from '../../firebase/config';
+import { useAccessibility } from '../context/AccesibilityContext';
 
-// --- NUEVO COMPONENTE: CommentModal ---
+// --- COMPONENTE: CommentModal ---
 const CommentModal = ({ visible, onClose, postId, postTitle, userName }) => {
+  const { settings, fontSize } = useAccessibility();
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState([]);
   const [loadingComments, setLoadingComments] = useState(true);
@@ -45,20 +48,16 @@ const CommentModal = ({ visible, onClose, postId, postTitle, userName }) => {
   useEffect(() => {
     if (!visible || !postId) return;
 
-    // Referencia al documento de la publicación
     const postRef = doc(db, 'Spaghetti/Publicaciones/Publicaciones', postId);
 
-    // Listener para obtener los comentarios en tiempo real
     const unsubscribe = onSnapshot(postRef, (docSnapshot) => {
       if (docSnapshot.exists()) {
         const postData = docSnapshot.data();
-        const loadedComments = postData.Comentarios || []; // Usar el array 'Comentarios'
+        const loadedComments = postData.Comentarios || [];
         
-        // Agregar un formato de fecha o lo que necesites (aquí simplificamos)
         const formattedComments = loadedComments.map(comment => ({
           ...comment,
-          // Si tienes timestamp, podrías formatearlo aquí
-        })).reverse(); // Mostrar el comentario más reciente primero
+        })).reverse();
 
         setComments(formattedComments);
         setLoadingComments(false);
@@ -78,12 +77,17 @@ const CommentModal = ({ visible, onClose, postId, postTitle, userName }) => {
   const handleSendComment = async () => {
     if (!commentText.trim() || !currentUserId) return;
 
+    // Feedback háptico
+    if (settings.hapticFeedback) {
+      Vibration.vibrate(50);
+    }
+
     setIsSending(true);
     const newComment = {
       userId: currentUserId,
       Nombre_Usuario: userName,
       Texto: commentText.trim(),
-      Fecha: new Date().toISOString(), // Usamos ISO string como ejemplo simple
+      Fecha: new Date().toISOString(),
     };
 
     try {
@@ -93,7 +97,7 @@ const CommentModal = ({ visible, onClose, postId, postTitle, userName }) => {
         Comentarios: arrayUnion(newComment),
       });
 
-      setCommentText(''); // Limpiar el input
+      setCommentText('');
     } catch (error) {
       console.error('Error al agregar comentario:', error);
       Alert.alert('Error', 'No se pudo enviar el comentario. Inténtalo de nuevo.');
@@ -105,8 +109,20 @@ const CommentModal = ({ visible, onClose, postId, postTitle, userName }) => {
   // Componente individual para renderizar un comentario
   const renderComment = ({ item }) => (
     <View style={commentStyles.commentItem}>
-      <Text style={commentStyles.commentUser}>{item.Nombre_Usuario || 'Usuario Desconocido'}</Text>
-      <Text style={commentStyles.commentText}>{item.Texto}</Text>
+      <Text style={[
+        commentStyles.commentUser,
+        settings.largeText && { fontSize: fontSize + 2 },
+        settings.boldText && { fontWeight: 'bold' }
+      ]}>
+        {item.Nombre_Usuario || 'Usuario Desconocido'}
+      </Text>
+      <Text style={[
+        commentStyles.commentText,
+        settings.largeText && { fontSize: fontSize },
+        settings.boldText && { fontWeight: '500' }
+      ]}>
+        {item.Texto}
+      </Text>
     </View>
   );
 
@@ -125,16 +141,30 @@ const CommentModal = ({ visible, onClose, postId, postTitle, userName }) => {
       onRequestClose={handleClose}
     >
       <KeyboardAvoidingView
-        style={commentStyles.modalOverlay}
+        style={[
+          commentStyles.modalOverlay,
+          settings.darkMode && styles.darkContainer,
+          settings.highContrast && styles.highContrastContainer
+        ]}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={commentStyles.modalContainer}>
+        <View style={[
+          commentStyles.modalContainer,
+          settings.darkMode && styles.darkCard,
+          settings.highContrast && styles.highContrastCard
+        ]}>
           <View style={commentStyles.modalHeader}>
             <TouchableOpacity onPress={handleClose} style={commentStyles.modalHeaderButton}>
               <Ionicons name="close" size={24} color="#666" />
             </TouchableOpacity>
-            <Text style={commentStyles.modalTitle}>Comentarios</Text>
-            <View style={{ width: 44 }} /> {/* Espaciador */}
+            <Text style={[
+              commentStyles.modalTitle,
+              settings.largeText && { fontSize: fontSize + 4 },
+              settings.boldText && { fontWeight: 'bold' }
+            ]}>
+              Comentarios
+            </Text>
+            <View style={{ width: 44 }} />
           </View>
 
           {loadingComments ? (
@@ -148,7 +178,13 @@ const CommentModal = ({ visible, onClose, postId, postTitle, userName }) => {
               ListEmptyComponent={() => (
                 <View style={commentStyles.emptyState}>
                   <Ionicons name="chatbubble-outline" size={50} color="#CCC" />
-                  <Text style={commentStyles.emptyStateText}>Sé el primero en comentar esta publicación.</Text>
+                  <Text style={[
+                    commentStyles.emptyStateText,
+                    settings.largeText && { fontSize: fontSize },
+                    settings.boldText && { fontWeight: '500' }
+                  ]}>
+                    Sé el primero en comentar esta publicación.
+                  </Text>
                 </View>
               )}
             />
@@ -157,13 +193,18 @@ const CommentModal = ({ visible, onClose, postId, postTitle, userName }) => {
           {/* Área de Input de Comentario */}
           <View style={commentStyles.commentInputContainer}>
             <TextInput
-              style={commentStyles.commentInput}
+              style={[
+                commentStyles.commentInput,
+                settings.largeText && { fontSize: fontSize },
+                settings.boldText && { fontWeight: '500' }
+              ]}
               placeholder="Añade un comentario..."
               value={commentText}
               onChangeText={setCommentText}
               multiline={true}
               maxHeight={100}
               editable={!isSending}
+              placeholderTextColor={settings.darkMode ? "#999" : "#666"}
             />
             <TouchableOpacity 
               style={[commentStyles.sendButton, isSending || commentText.trim().length === 0 ? commentStyles.disabledSendButton : {}]}
@@ -182,61 +223,282 @@ const CommentModal = ({ visible, onClose, postId, postTitle, userName }) => {
     </Modal>
   );
 };
-// --- FIN NUEVO COMPONENTE: CommentModal ---
 
+// Componente de Post - MODIFICADO PARA PERMITIR NAVEGAR AL PERFIL DEL USUARIO
+const PostCard = ({ post, onLike, onSave, onComment, onUserPress }) => {
+  const { settings, fontSize } = useAccessibility();
 
-// Componente de Post - MODIFICADO para mostrar la cantidad de comentarios
-const PostCard = ({ post, onLike, onSave, onComment }) => (
-  <View style={styles.postCard}>
-    <View style={styles.postHeader}>
-      <Text style={styles.userName}>{post.Nombre_Usuario || 'Usuario'}</Text>
-    </View>
-    <View style={styles.postContent}>
-      <Text style={styles.postTitle}>{post.Titulo}</Text>
-      <Text style={styles.postDescription}>{post.Descripcion}</Text>
-    </View>
-    {/* Mostrar imagen Base64 o URL normal */}
-    {post.ImagenBase64 && (
-      <Image 
-        source={{ uri: post.ImagenBase64 }} 
-        style={styles.postImage} 
-      />
-    )}
-    {post.Imagen && !post.ImagenBase64 && (
-      <Image source={{ uri: post.Imagen }} style={styles.postImage} />
-    )}
-    <View style={styles.postActions}>
-      <TouchableOpacity onPress={() => onLike(post.id)} style={styles.actionButton}>
-        <Ionicons 
-          name={post.userLiked ? "heart" : "heart-outline"} 
-          size={24} 
-          color={post.userLiked ? "#8B0000" : "#666"} 
+  const handleLikePress = () => {
+    if (settings.hapticFeedback) {
+      Vibration.vibrate(50);
+    }
+    onLike(post.id);
+  };
+
+  const handleCommentPress = () => {
+    if (settings.hapticFeedback) {
+      Vibration.vibrate(50);
+    }
+    onComment(post.id, post.Titulo);
+  };
+
+  const handleUserPress = () => {
+    if (settings.hapticFeedback) {
+      Vibration.vibrate(50);
+    }
+    onUserPress(post.userId, post.Nombre_Usuario);
+  };
+
+  return (
+    <View style={[
+      styles.postCard,
+      settings.darkMode && styles.darkCard,
+      settings.highContrast && styles.highContrastCard
+    ]}>
+      <View style={styles.postHeader}>
+        <TouchableOpacity 
+          style={styles.userNameContainer}
+          onPress={handleUserPress}
+        >
+          <Text style={[
+            styles.userName,
+            settings.largeText && { fontSize: fontSize + 2 },
+            settings.boldText && { fontWeight: 'bold' }
+          ]}>
+            {post.Nombre_Usuario || 'Usuario'}
+          </Text>
+        </TouchableOpacity>
+        {post.categoria && (
+          <View style={styles.categoryTag}>
+            <Text style={styles.categoryTagText}>{post.categoria}</Text>
+          </View>
+        )}
+      </View>
+      <View style={styles.postContent}>
+        <Text style={[
+          styles.postTitle,
+          settings.largeText && { fontSize: fontSize + 4 },
+          settings.boldText && { fontWeight: 'bold' }
+        ]}>
+          {post.Titulo}
+        </Text>
+        <Text style={[
+          styles.postDescription,
+          settings.largeText && { fontSize: fontSize },
+          settings.boldText && { fontWeight: '500' }
+        ]}>
+          {post.Descripcion}
+        </Text>
+      </View>
+      {/* Mostrar imagen Base64 o URL normal */}
+      {post.ImagenBase64 && (
+        <Image 
+          source={{ uri: post.ImagenBase64 }} 
+          style={styles.postImage} 
         />
-        <Text style={styles.likeCount}>{post.Cant_MeGustas || 0}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => onSave(post.id)} style={styles.actionButton}>
-        <Ionicons 
-          name={post.isSaved ? "bookmark" : "bookmark-outline"} 
-          size={24} 
-          color={post.isSaved ? "#8B0000" : "#666"} 
-        />
-      </TouchableOpacity>
-      {/* Botón de Comentarios - AHORA ABRE EL MODAL */}
-      <TouchableOpacity onPress={() => onComment(post.id, post.Titulo)} style={styles.actionButton}>
-        <Ionicons name="chatbubble-outline" size={24} color="#666" />
-        <Text style={styles.likeCount}>{post.Comentarios?.length || 0}</Text> {/* Muestra la cantidad */}
-      </TouchableOpacity>
+      )}
+      {post.Imagen && !post.ImagenBase64 && (
+        <Image source={{ uri: post.Imagen }} style={styles.postImage} />
+      )}
+      <View style={styles.postActions}>
+        <TouchableOpacity onPress={handleLikePress} style={styles.actionButton}>
+          <Ionicons 
+            name={post.userLiked ? "heart" : "heart-outline"} 
+            size={24} 
+            color={post.userLiked ? "#8B0000" : "#666"} 
+          />
+          <Text style={[
+            styles.likeCount,
+            settings.largeText && { fontSize: fontSize },
+            settings.boldText && { fontWeight: '500' }
+          ]}>
+            {post.Cant_MeGustas || 0}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onSave} style={styles.actionButton}>
+          <Ionicons 
+            name={post.isSaved ? "bookmark" : "bookmark-outline"} 
+            size={24} 
+            color={post.isSaved ? "#8B0000" : "#666"} 
+          />
+        </TouchableOpacity>
+        {/* Botón de Comentarios */}
+        <TouchableOpacity onPress={handleCommentPress} style={styles.actionButton}>
+          <Ionicons name="chatbubble-outline" size={24} color="#666" />
+          <Text style={[
+            styles.likeCount,
+            settings.largeText && { fontSize: fontSize },
+            settings.boldText && { fontWeight: '500' }
+          ]}>
+            {post.Comentarios?.length || 0}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
-  </View>
-);
+  );
+};
 
-// Modal para Crear Publicación (Se mantiene igual)
+// --- NUEVO COMPONENTE: Modal de Selección de Categorías ---
+const CategoriesSelectorModal = ({ visible, onClose, onCategoriesSelected, selectedCategories }) => {
+  const { settings, fontSize } = useAccessibility();
+  const [tempSelectedCategories, setTempSelectedCategories] = useState(selectedCategories || []);
+
+  // Lista de categorías disponibles (la misma que en Perfil.js)
+  const availableCategories = [
+    { id: 'tecnologia', name: 'Tecnología', icon: 'phone-portrait' },
+    { id: 'deportes', name: 'Deportes', icon: 'basketball' },
+    { id: 'musica', name: 'Música', icon: 'musical-notes' },
+    { id: 'arte', name: 'Arte', icon: 'color-palette' },
+    { id: 'ciencia', name: 'Ciencia', icon: 'flask' },
+    { id: 'viajes', name: 'Viajes', icon: 'airplane' },
+    { id: 'comida', name: 'Comida', icon: 'restaurant' },
+    { id: 'moda', name: 'Moda', icon: 'shirt' },
+    { id: 'juegos', name: 'Juegos', icon: 'game-controller' },
+    { id: 'educacion', name: 'Educación', icon: 'school' },
+    { id: 'negocios', name: 'Negocios', icon: 'briefcase' },
+    { id: 'salud', name: 'Salud', icon: 'fitness' },
+    { id: 'animales', name: 'Animales', icon: 'paw' },
+    { id: 'naturaleza', name: 'Naturaleza', icon: 'leaf' },
+    { id: 'deportes_extremos', name: 'Deportes Extremos', icon: 'rocket' },
+    { id: 'cocina', name: 'Cocina', icon: 'cafe' },
+    { id: 'fotografia', name: 'Fotografía', icon: 'camera' },
+    { id: 'cine', name: 'Cine', icon: 'film' },
+    { id: 'libros', name: 'Libros', icon: 'book' },
+    { id: 'automoviles', name: 'Automóviles', icon: 'car' }
+  ];
+
+  const toggleCategory = (categoryId) => {
+    if (settings.hapticFeedback) {
+      Vibration.vibrate(50);
+    }
+    
+    setTempSelectedCategories(prev => {
+      if (prev.includes(categoryId)) {
+        return prev.filter(id => id !== categoryId);
+      } else {
+        // Permitir solo una categoría por publicación (puedes cambiar esto si quieres múltiples)
+        return [categoryId];
+      }
+    });
+  };
+
+  const handleSave = () => {
+    if (settings.hapticFeedback) {
+      Vibration.vibrate(50);
+    }
+    onCategoriesSelected(tempSelectedCategories);
+    onClose();
+  };
+
+  const handleClose = () => {
+    setTempSelectedCategories(selectedCategories || []);
+    onClose();
+  };
+
+  const renderCategoryItem = ({ item }) => (
+    <TouchableOpacity
+      style={[
+        categoriesSelectorStyles.categoryItem,
+        tempSelectedCategories.includes(item.id) && categoriesSelectorStyles.categoryItemSelected
+      ]}
+      onPress={() => toggleCategory(item.id)}
+    >
+      <View style={categoriesSelectorStyles.categoryIcon}>
+        <Ionicons 
+          name={item.icon} 
+          size={20} 
+          color={tempSelectedCategories.includes(item.id) ? "#FFA500" : "#666"} 
+        />
+      </View>
+      <Text style={[
+        categoriesSelectorStyles.categoryName,
+        tempSelectedCategories.includes(item.id) && categoriesSelectorStyles.categoryNameSelected,
+        settings.largeText && { fontSize: fontSize },
+        settings.boldText && { fontWeight: '500' }
+      ]}>
+        {item.name}
+      </Text>
+      {tempSelectedCategories.includes(item.id) && (
+        <Ionicons name="checkmark-circle" size={20} color="#FFA500" />
+      )}
+    </TouchableOpacity>
+  );
+
+  return (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={visible}
+      onRequestClose={handleClose}
+    >
+      <View style={[
+        categoriesSelectorStyles.modalOverlay,
+        settings.darkMode && styles.darkContainer,
+        settings.highContrast && styles.highContrastContainer
+      ]}>
+        <View style={[
+          categoriesSelectorStyles.modalContainer,
+          settings.darkMode && styles.darkCard,
+          settings.highContrast && styles.highContrastCard
+        ]}>
+          <View style={categoriesSelectorStyles.modalHeader}>
+            <TouchableOpacity onPress={handleClose} style={categoriesSelectorStyles.modalHeaderButton}>
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+            <Text style={[
+              categoriesSelectorStyles.modalTitle,
+              settings.largeText && { fontSize: fontSize + 4 },
+              settings.boldText && { fontWeight: 'bold' }
+            ]}>
+              Seleccionar Categoría
+            </Text>
+            <TouchableOpacity onPress={handleSave} style={categoriesSelectorStyles.modalHeaderButton}>
+              <Text style={categoriesSelectorStyles.saveButton}>Listo</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={categoriesSelectorStyles.modalContent}>
+            <Text style={[
+              categoriesSelectorStyles.description,
+              settings.largeText && { fontSize: fontSize },
+              settings.boldText && { fontWeight: '500' }
+            ]}>
+              Selecciona la categoría que mejor describe tu publicación.
+            </Text>
+            
+            <Text style={[
+              categoriesSelectorStyles.selectedCount,
+              settings.largeText && { fontSize: fontSize },
+              settings.boldText && { fontWeight: 'bold' }
+            ]}>
+              {tempSelectedCategories.length} de 1 categoría seleccionada
+            </Text>
+
+            <FlatList
+              data={availableCategories}
+              renderItem={renderCategoryItem}
+              keyExtractor={item => item.id}
+              numColumns={2}
+              columnWrapperStyle={categoriesSelectorStyles.categoriesGrid}
+              showsVerticalScrollIndicator={false}
+              style={categoriesSelectorStyles.categoriesList}
+            />
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// Modal para Crear Publicación - MODIFICADO PARA INCLUIR CATEGORÍAS
 const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
-  // ... (MANTENER EL CÓDIGO DEL MODAL DE PUBLICACIÓN)
+  const { settings, fontSize } = useAccessibility();
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [showCategoriesModal, setShowCategoriesModal] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -337,10 +599,51 @@ const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
     setSelectedImage(null);
   };
 
+  // NUEVA FUNCIÓN: Manejar selección de categorías
+  const handleCategoriesSelected = (categories) => {
+    setSelectedCategories(categories);
+  };
+
+  // NUEVA FUNCIÓN: Obtener nombre de la categoría seleccionada
+  const getSelectedCategoryName = () => {
+    if (selectedCategories.length === 0) return 'Seleccionar categoría';
+    
+    const availableCategories = [
+      { id: 'tecnologia', name: 'Tecnología' },
+      { id: 'deportes', name: 'Deportes' },
+      { id: 'musica', name: 'Música' },
+      { id: 'arte', name: 'Arte' },
+      { id: 'ciencia', name: 'Ciencia' },
+      { id: 'viajes', name: 'Viajes' },
+      { id: 'comida', name: 'Comida' },
+      { id: 'moda', name: 'Moda' },
+      { id: 'juegos', name: 'Juegos' },
+      { id: 'educacion', name: 'Educación' },
+      { id: 'negocios', name: 'Negocios' },
+      { id: 'salud', name: 'Salud' },
+      { id: 'animales', name: 'Animales' },
+      { id: 'naturaleza', name: 'Naturaleza' },
+      { id: 'deportes_extremos', name: 'Deportes Extremos' },
+      { id: 'cocina', name: 'Cocina' },
+      { id: 'fotografia', name: 'Fotografía' },
+      { id: 'cine', name: 'Cine' },
+      { id: 'libros', name: 'Libros' },
+      { id: 'automoviles', name: 'Automóviles' }
+    ];
+
+    const selectedCategory = availableCategories.find(cat => cat.id === selectedCategories[0]);
+    return selectedCategory ? selectedCategory.name : 'Seleccionar categoría';
+  };
+
   const handleCreatePost = async () => {
     if (!titulo.trim() || !descripcion.trim()) {
       Alert.alert('Error', 'Por favor completa todos los campos');
       return;
+    }
+
+    // Feedback háptico
+    if (settings.hapticFeedback) {
+      Vibration.vibrate(50);
     }
 
     try {
@@ -363,12 +666,14 @@ const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
         Titulo: titulo.trim(),
         Descripcion: descripcion.trim(),
         Imagen: imageBase64, 
-        Nombre_Usuario: userName
+        Nombre_Usuario: userName,
+        categoria: selectedCategories.length > 0 ? selectedCategories[0] : null // NUEVO: Incluir categoría
       });
       
       setTitulo('');
       setDescripcion('');
       setSelectedImage(null);
+      setSelectedCategories([]);
       setUploading(false);
       onClose();
     } catch (error) {
@@ -382,6 +687,7 @@ const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
     setTitulo('');
     setDescripcion('');
     setSelectedImage(null);
+    setSelectedCategories([]);
     setUploading(false);
     onClose();
   };
@@ -394,13 +700,27 @@ const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
       visible={visible}
       onRequestClose={handleClose}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
+      <View style={[
+        styles.modalOverlay,
+        settings.darkMode && styles.darkContainer,
+        settings.highContrast && styles.highContrastContainer
+      ]}>
+        <View style={[
+          styles.modalContainer,
+          settings.darkMode && styles.darkCard,
+          settings.highContrast && styles.highContrastCard
+        ]}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={handleClose} style={styles.modalHeaderButton}>
               <Ionicons name="close" size={24} color="#666" />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Nueva Publicación</Text>
+            <Text style={[
+              styles.modalTitle,
+              settings.largeText && { fontSize: fontSize + 4 },
+              settings.boldText && { fontWeight: 'bold' }
+            ]}>
+              Nueva Publicación
+            </Text>
             <TouchableOpacity 
               onPress={handleCreatePost} 
               style={styles.modalHeaderButton}
@@ -420,12 +740,55 @@ const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
               <View style={styles.userAvatar}>
                 <Ionicons name="person" size={20} color="#8B0000" />
               </View>
-              <Text style={styles.userNameText}>Publicando como: {userName}</Text>
+              <Text style={[
+                styles.userNameText,
+                settings.largeText && { fontSize: fontSize },
+                settings.boldText && { fontWeight: '500' }
+              ]}>
+                Publicando como: {userName}
+              </Text>
+            </View>
+
+            {/* NUEVO: Selector de Categorías */}
+            <View style={styles.inputContainer}>
+              <Text style={[
+                styles.inputLabel,
+                settings.largeText && { fontSize: fontSize + 2 },
+                settings.boldText && { fontWeight: 'bold' }
+              ]}>
+                Categoría *
+              </Text>
+              <TouchableOpacity 
+                style={styles.categorySelectorButton}
+                onPress={() => setShowCategoriesModal(true)}
+              >
+                <Text style={[
+                  styles.categorySelectorText,
+                  selectedCategories.length > 0 && styles.categorySelectedText,
+                  settings.largeText && { fontSize: fontSize },
+                  settings.boldText && { fontWeight: '500' }
+                ]}>
+                  {getSelectedCategoryName()}
+                </Text>
+                <Ionicons name="chevron-down" size={20} color="#666" />
+              </TouchableOpacity>
+              <Text style={[
+                styles.helpText,
+                settings.largeText && { fontSize: fontSize - 2 }
+              ]}>
+                Selecciona la categoría que mejor describe tu publicación
+              </Text>
             </View>
 
             {/* Selección de imagen */}
             <View style={styles.imageSelectionContainer}>
-              <Text style={styles.inputLabel}>Imagen (Opcional)</Text>
+              <Text style={[
+                styles.inputLabel,
+                settings.largeText && { fontSize: fontSize + 2 },
+                settings.boldText && { fontWeight: 'bold' }
+              ]}>
+                Imagen (Opcional)
+              </Text>
               
               {selectedImage ? (
                 <View style={styles.selectedImageContainer}>
@@ -438,12 +801,24 @@ const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
                 <View style={styles.imageButtonsContainer}>
                   <TouchableOpacity style={styles.imageButton} onPress={pickImageFromGallery}>
                     <Ionicons name="images-outline" size={24} color="#8B0000" />
-                    <Text style={styles.imageButtonText}>Galería</Text>
+                    <Text style={[
+                      styles.imageButtonText,
+                      settings.largeText && { fontSize: fontSize },
+                      settings.boldText && { fontWeight: '500' }
+                    ]}>
+                      Galería
+                    </Text>
                   </TouchableOpacity>
                   
                   <TouchableOpacity style={styles.imageButton} onPress={takePhoto}>
                     <Ionicons name="camera-outline" size={24} color="#8B0000" />
-                    <Text style={styles.imageButtonText}>Cámara</Text>
+                    <Text style={[
+                      styles.imageButtonText,
+                      settings.largeText && { fontSize: fontSize },
+                      settings.boldText && { fontWeight: '500' }
+                    ]}>
+                      Cámara
+                    </Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -451,23 +826,50 @@ const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
 
             {/* Campo Título */}
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Título *</Text>
+              <Text style={[
+                styles.inputLabel,
+                settings.largeText && { fontSize: fontSize + 2 },
+                settings.boldText && { fontWeight: 'bold' }
+              ]}>
+                Título *
+              </Text>
               <TextInput
-                style={styles.textInput}
+                style={[
+                  styles.textInput,
+                  settings.largeText && { fontSize: fontSize },
+                  settings.boldText && { fontWeight: '500' }
+                ]}
                 placeholder="Escribe el título de tu publicación..."
                 value={titulo}
                 onChangeText={setTitulo}
                 maxLength={100}
                 editable={!uploading}
+                placeholderTextColor={settings.darkMode ? "#999" : "#666"}
               />
-              <Text style={styles.helpText}>{titulo.length}/100 caracteres</Text>
+              <Text style={[
+                styles.helpText,
+                settings.largeText && { fontSize: fontSize - 2 }
+              ]}>
+                {titulo.length}/100 caracteres
+              </Text>
             </View>
 
             {/* Campo Descripción */}
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Descripción *</Text>
+              <Text style={[
+                styles.inputLabel,
+                settings.largeText && { fontSize: fontSize + 2 },
+                settings.boldText && { fontWeight: 'bold' }
+              ]}>
+                Descripción *
+              </Text>
               <TextInput
-                style={[styles.textInput, styles.textArea]}
+                style={[
+                  styles.textInput, 
+                  styles.textArea,
+                  settings.largeText && { fontSize: fontSize },
+                  settings.boldText && { fontWeight: '500' }
+                ]}
                 placeholder="Describe tu publicación..."
                 value={descripcion}
                 onChangeText={setDescripcion}
@@ -475,15 +877,25 @@ const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
                 numberOfLines={4}
                 maxLength={500}
                 editable={!uploading}
+                placeholderTextColor={settings.darkMode ? "#999" : "#666"}
               />
-              <Text style={styles.helpText}>{descripcion.length}/500 caracteres</Text>
+              <Text style={[
+                styles.helpText,
+                settings.largeText && { fontSize: fontSize - 2 }
+              ]}>
+                {descripcion.length}/500 caracteres
+              </Text>
             </View>
 
             {/* Indicador de carga */}
             {uploading && (
               <View style={styles.uploadingContainer}>
                 <ActivityIndicator size="large" color="#8B0000" />
-                <Text style={styles.uploadingText}>
+                <Text style={[
+                  styles.uploadingText,
+                  settings.largeText && { fontSize: fontSize },
+                  settings.boldText && { fontWeight: '500' }
+                ]}>
                   {selectedImage ? 'Procesando imagen...' : 'Creando publicación...'}
                 </Text>
               </View>
@@ -497,70 +909,150 @@ const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
               onPress={handleClose}
               disabled={uploading}
             >
-              <Text style={styles.cancelButtonText}>Cancelar</Text>
+              <Text style={[
+                styles.cancelButtonText,
+                settings.largeText && { fontSize: fontSize },
+                settings.boldText && { fontWeight: '500' }
+              ]}>
+                Cancelar
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={[styles.createButton, uploading && styles.disabledButton]} 
               onPress={handleCreatePost}
-              disabled={uploading}
+              disabled={uploading || selectedCategories.length === 0}
             >
               {uploading ? (
                 <ActivityIndicator size="small" color="#FFA500" />
               ) : (
-                <Text style={styles.createButtonText}>Crear Publicación</Text>
+                <Text style={[
+                  styles.createButtonText,
+                  settings.largeText && { fontSize: fontSize },
+                  settings.boldText && { fontWeight: 'bold' }
+                ]}>
+                  Crear Publicación
+                </Text>
               )}
             </TouchableOpacity>
           </View>
         </View>
       </View>
+
+      {/* NUEVO: Modal de selección de categorías */}
+      <CategoriesSelectorModal
+        visible={showCategoriesModal}
+        onClose={() => setShowCategoriesModal(false)}
+        onCategoriesSelected={handleCategoriesSelected}
+        selectedCategories={selectedCategories}
+      />
     </Modal>
   );
 };
 
-// Pantalla Principal (Feed) - MODIFICADA para gestionar el modal de comentarios
+// Pantalla Principal (Feed) - MODIFICADA PARA TIEMPO REAL
 const FeedScreen = ({ navigation }) => {
+  const { settings, fontSize } = useAccessibility();
   const [showCreateModal, setShowCreateModal] = useState(false);
-  // --- Estados para el modal de comentarios ---
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState(null);
   const [selectedPostTitle, setSelectedPostTitle] = useState('');
-  // -------------------------------------------
   const [activeTab, setActiveTab] = useState('paraTi');
   const [posts, setPosts] = useState([]);
+  const [filteredPosts, setFilteredPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState('Usuario');
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [userCategories, setUserCategories] = useState([]);
+  const [followingUsers, setFollowingUsers] = useState([]);
 
-  // Cargar nombre del usuario actual y ID (Se mantiene igual)
+  // Función para manejar la navegación con feedback háptico
+  const handleNavigationWithFeedback = (screen, params = {}) => {
+    if (settings.hapticFeedback) {
+      Vibration.vibrate(50);
+    }
+    navigation.navigate(screen, params);
+  };
+
+  const handleCreatePostPress = () => {
+    if (settings.hapticFeedback) {
+      Vibration.vibrate(50);
+    }
+    setShowCreateModal(true);
+  };
+
+  const handleTabChange = (tab) => {
+    if (settings.hapticFeedback) {
+      Vibration.vibrate(30);
+    }
+    setActiveTab(tab);
+  };
+
+  // Cargar datos del usuario en tiempo real - MODIFICADO PARA TIEMPO REAL
   useEffect(() => {
-    const loadUserName = async () => {
-      try {
-        const user = auth.currentUser;
-        if (!user) {
-          setUserName('Usuario');
-          return;
-        }
+    const user = auth.currentUser;
+    if (!user) {
+      setUserName('Usuario');
+      return;
+    }
 
-        setCurrentUserId(user.uid);
-        const userDocRef = doc(db, 'Spaghetti', 'Usuario', 'Usuario', user.uid);
-        const userDoc = await getDoc(userDocRef);
+    setCurrentUserId(user.uid);
+    const userDocRef = doc(db, 'Spaghetti', 'Usuario', 'Usuario', user.uid);
 
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          setUserName(userData.nombre || user.email || 'Usuario');
+    // Escuchar cambios en tiempo real del documento del usuario
+    const unsubscribeUser = onSnapshot(userDocRef, (userDoc) => {
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        setUserName(userData.nombre || user.email || 'Usuario');
+        setUserCategories(userData.categories || []);
+        
+        // Cargar lista de usuarios seguidos
+        if (userData.following && userData.following.length > 0) {
+          setFollowingUsers(userData.following);
         } else {
-          setUserName(user.email || 'Usuario');
+          setFollowingUsers([]);
         }
-      } catch (error) {
-        console.error('Error cargando nombre de usuario:', error);
-        setUserName('Usuario');
+      } else {
+        setUserName(user.email || 'Usuario');
+        setUserCategories([]);
+        setFollowingUsers([]);
       }
-    };
+    }, (error) => {
+      console.error('Error escuchando cambios del usuario:', error);
+    });
 
-    loadUserName();
+    return unsubscribeUser;
   }, []);
 
-  // Cargar publicaciones desde Firebase (Se mantiene igual, solo que ahora carga el array 'Comentarios')
+  // Función para filtrar publicaciones según la pestaña activa
+  const filterPostsByTab = (allPosts, tab, categories, following) => {
+    if (tab === 'paraTi') {
+      // Filtrar por categorías de preferencia
+      if (categories && categories.length > 0) {
+        return allPosts.filter(post => {
+          // Si el post tiene categoría y coincide con las preferencias del usuario
+          if (post.categoria && categories.includes(post.categoria)) {
+            return true;
+          }
+          // Si no tiene categoría definida, no mostrar en "Para ti" cuando hay categorías seleccionadas
+          return false;
+        });
+      } else {
+        // Si no tiene categorías seleccionadas, mostrar todos los posts
+        return allPosts;
+      }
+    } else if (tab === 'siguiendo') {
+      // Filtrar por usuarios seguidos
+      if (following && following.length > 0) {
+        return allPosts.filter(post => following.includes(post.userId));
+      } else {
+        // Si no sigue a nadie, no mostrar posts
+        return [];
+      }
+    }
+    return allPosts;
+  };
+
+  // Cargar publicaciones desde Firebase - MODIFICADA PARA TIEMPO REAL
   useEffect(() => {
     const loadPosts = () => {
       try {
@@ -572,17 +1064,11 @@ const FeedScreen = ({ navigation }) => {
 
         let postsQuery;
         
-        if (activeTab === 'paraTi') {
-          postsQuery = query(
-            collection(db, 'Spaghetti/Publicaciones/Publicaciones'),
-            orderBy('Fecha_publicacion', 'desc')
-          );
-        } else {
-          postsQuery = query(
-            collection(db, 'Spaghetti/Publicaciones/Publicaciones'),
-            orderBy('Fecha_publicacion', 'desc')
-          );
-        }
+        // Consulta base para todas las publicaciones
+        postsQuery = query(
+          collection(db, 'Spaghetti/Publicaciones/Publicaciones'),
+          orderBy('Fecha_publicacion', 'desc')
+        );
 
         const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
           const postsData = snapshot.docs.map(doc => {
@@ -617,9 +1103,22 @@ const FeedScreen = ({ navigation }) => {
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [activeTab, currentUserId]);
+  }, [currentUserId]);
 
-  // Crear nueva publicación - MODIFICADO para inicializar el array `Comentarios`
+  // ACTUALIZACIÓN EN TIEMPO REAL: Filtrar posts cuando cambian las preferencias o la pestaña
+  useEffect(() => {
+    if (posts.length > 0) {
+      const filtered = filterPostsByTab(
+        posts, 
+        activeTab, 
+        userCategories, 
+        followingUsers
+      );
+      setFilteredPosts(filtered);
+    }
+  }, [posts, activeTab, userCategories, followingUsers]);
+
+  // Crear nueva publicación - MODIFICADA PARA INCLUIR CATEGORÍA
   const handleCreatePost = async (postData) => {
     try {
       const user = auth.currentUser;
@@ -638,7 +1137,8 @@ const FeedScreen = ({ navigation }) => {
         Nombre_Usuario: postData.Nombre_Usuario,
         isSaved: false,
         likedBy: [],
-        Comentarios: [], // <<< Inicializar el array de comentarios
+        Comentarios: [],
+        categoria: postData.categoria // NUEVO: Incluir categoría
       };
 
       if (postData.Imagen) {
@@ -657,7 +1157,7 @@ const FeedScreen = ({ navigation }) => {
     }
   };
 
-  // handleLike (Se mantiene igual)
+  // handleLike
   const handleLike = async (postId) => {
     try {
       const user = auth.currentUser;
@@ -692,7 +1192,7 @@ const FeedScreen = ({ navigation }) => {
     console.log('Guardar post:', postId);
   };
 
-  // handleComment - LÓGICA PARA ABRIR EL MODAL DE COMENTARIOS
+  // handleComment
   const handleComment = (postId, postTitle) => {
     if (!auth.currentUser) {
       Alert.alert('Error', 'Debes iniciar sesión para comentar.');
@@ -703,7 +1203,25 @@ const FeedScreen = ({ navigation }) => {
     setShowCommentModal(true);
   };
 
-  // Lógica para cerrar el modal de comentarios
+  // NUEVA FUNCIÓN: Navegar al perfil del usuario
+  const handleUserProfilePress = (userId, userName) => {
+    if (!userId) {
+      Alert.alert('Error', 'No se puede acceder al perfil de este usuario');
+      return;
+    }
+
+    // Si es el perfil del usuario actual, navegar a la pantalla de perfil normal
+    if (userId === currentUserId) {
+      handleNavigationWithFeedback('Perfil');
+    } else {
+      // Navegar a la pantalla de perfil de otro usuario
+      handleNavigationWithFeedback('UserProfile', { 
+        userId: userId,
+        userName: userName 
+      });
+    }
+  };
+
   const handleCloseCommentModal = () => {
     setShowCommentModal(false);
     setSelectedPostId(null);
@@ -711,36 +1229,104 @@ const FeedScreen = ({ navigation }) => {
   };
 
   const handleNavigateToProfile = () => {
-    navigation.navigate('Perfil');
+    handleNavigationWithFeedback('Perfil');
   };
 
   const handleNavigateToSettings = () => {
-    navigation.navigate('UserConfig');
+    handleNavigationWithFeedback('UserConfig');
   };
 
-  const handleTabChange = (tab) => {
-    setActiveTab(tab);
+  // --- NUEVA FUNCIÓN: Navegar a pantalla de búsqueda ---
+  const handleNavigateToSearch = () => {
+    handleNavigationWithFeedback('SearchUsers');
   };
+
+  // Determinar qué posts mostrar
+  const postsToShow = filteredPosts;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor="#000" barStyle="light-content" />
+    <SafeAreaView style={[
+      styles.container,
+      settings.darkMode && styles.darkContainer,
+      settings.highContrast && styles.highContrastContainer
+    ]}>
+      <StatusBar 
+        backgroundColor={settings.darkMode ? "#1a1a1a" : "#000"} 
+        barStyle={settings.darkMode ? "light-content" : "light-content"} 
+      />
       
-      <View style={styles.header}>
+      {/* --- HEADER MODIFICADO: Logo centrado --- */}
+      <View style={[
+        styles.header,
+        settings.darkMode && styles.darkHeader,
+        settings.highContrast && styles.highContrastHeader
+      ]}>
         <TouchableOpacity onPress={handleNavigateToProfile} style={styles.headerButton}>
           <Ionicons name="person-circle-outline" size={32} color="#8B0000" />
         </TouchableOpacity>
         
+        {/* LOGO CENTRADO */}
         <View style={styles.headerCenter}>
           <Text style={styles.headerLogo}>$</Text>
         </View>
         
-        <TouchableOpacity 
-          style={styles.headerButton}
-          onPress={handleNavigateToSettings}
-        >
-          <Ionicons name="ellipsis-horizontal" size={24} color="#8B0000" />
-        </TouchableOpacity>
+        {/* --- CONTENEDOR PARA BOTONES DERECHOS --- */}
+        <View style={styles.headerRightButtons}>
+          {/* --- NUEVO BOTÓN DE BÚSQUEDA --- */}
+          <TouchableOpacity 
+            style={styles.headerButton}
+            onPress={handleNavigateToSearch}
+          >
+            <Ionicons name="search" size={24} color="#8B0000" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.headerButton}
+            onPress={handleNavigateToSettings}
+          >
+            <Ionicons name="ellipsis-horizontal" size={24} color="#8B0000" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Indicadores de filtro activo */}
+      <View style={styles.filterIndicators}>
+        {activeTab === 'paraTi' && userCategories.length > 0 && (
+          <Text style={[
+            styles.filterIndicator,
+            settings.largeText && { fontSize: fontSize },
+            settings.boldText && { fontWeight: '500' }
+          ]}>
+            Mostrando {filteredPosts.length} publicaciones de {userCategories.length} categorías
+          </Text>
+        )}
+        {activeTab === 'paraTi' && userCategories.length === 0 && (
+          <Text style={[
+            styles.filterIndicator,
+            settings.largeText && { fontSize: fontSize },
+            settings.boldText && { fontWeight: '500' }
+          ]}>
+            Mostrando todas las publicaciones ({filteredPosts.length})
+          </Text>
+        )}
+        {activeTab === 'siguiendo' && followingUsers.length > 0 && (
+          <Text style={[
+            styles.filterIndicator,
+            settings.largeText && { fontSize: fontSize },
+            settings.boldText && { fontWeight: '500' }
+          ]}>
+            Siguiendo: {followingUsers.length} usuarios - {filteredPosts.length} publicaciones
+          </Text>
+        )}
+        {activeTab === 'siguiendo' && followingUsers.length === 0 && (
+          <Text style={[
+            styles.filterIndicator,
+            settings.largeText && { fontSize: fontSize },
+            settings.boldText && { fontWeight: '500' }
+          ]}>
+            No sigues a ningún usuario
+          </Text>
+        )}
       </View>
 
       <View style={styles.tabContainer}>
@@ -753,10 +1339,17 @@ const FeedScreen = ({ navigation }) => {
         >
           <Text style={[
             styles.tabText, 
-            activeTab === 'paraTi' && styles.activeTabText
+            activeTab === 'paraTi' && styles.activeTabText,
+            settings.largeText && { fontSize: fontSize },
+            settings.boldText && { fontWeight: 'bold' }
           ]}>
             Para ti
           </Text>
+          {userCategories.length > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{userCategories.length}</Text>
+            </View>
+          )}
         </TouchableOpacity>
         <TouchableOpacity 
           style={[
@@ -767,10 +1360,17 @@ const FeedScreen = ({ navigation }) => {
         >
           <Text style={[
             styles.tabText, 
-            activeTab === 'siguiendo' && styles.activeTabText
+            activeTab === 'siguiendo' && styles.activeTabText,
+            settings.largeText && { fontSize: fontSize },
+            settings.boldText && { fontWeight: 'bold' }
           ]}>
             Siguiendo
           </Text>
+          {followingUsers.length > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{followingUsers.length}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -778,44 +1378,83 @@ const FeedScreen = ({ navigation }) => {
         {loading ? (
           <View style={styles.emptyState}>
             <Ionicons name="refresh-outline" size={60} color="#CCC" />
-            <Text style={styles.emptyStateText}>Cargando publicaciones...</Text>
+            <Text style={[
+              styles.emptyStateText,
+              settings.largeText && { fontSize: fontSize + 2 },
+              settings.boldText && { fontWeight: 'bold' }
+            ]}>
+              Cargando publicaciones...
+            </Text>
           </View>
-        ) : posts.length === 0 ? (
+        ) : postsToShow.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons 
               name={activeTab === 'paraTi' ? "compass-outline" : "people-outline"} 
               size={60} 
               color="#CCC" 
             />
-            <Text style={styles.emptyStateText}>
+            <Text style={[
+              styles.emptyStateText,
+              settings.largeText && { fontSize: fontSize + 2 },
+              settings.boldText && { fontWeight: 'bold' }
+            ]}>
               {activeTab === 'paraTi' 
-                ? 'No hay publicaciones aún' 
-                : 'No hay publicaciones de usuarios que sigues'
+                ? userCategories.length === 0 
+                  ? 'No hay publicaciones aún' 
+                  : 'No hay publicaciones en tus categorías de interés'
+                : followingUsers.length === 0
+                  ? 'No sigues a ningún usuario'
+                  : 'No hay publicaciones de usuarios que sigues'
               }
             </Text>
-            <Text style={styles.emptyStateSubtext}>
+            <Text style={[
+              styles.emptyStateSubtext,
+              settings.largeText && { fontSize: fontSize },
+              settings.boldText && { fontWeight: '500' }
+            ]}>
               {activeTab === 'paraTi'
-                ? 'Sé el primero en crear una publicación'
+                ? userCategories.length === 0
+                  ? 'Selecciona categorías de interés en tu perfil'
+                  : 'Los usuarios que sigues no han publicado en tus categorías'
                 : 'Sigue a más usuarios para ver sus publicaciones aquí'
               }
             </Text>
+            {activeTab === 'paraTi' && userCategories.length === 0 && (
+              <TouchableOpacity 
+                style={styles.settingsButton}
+                onPress={() => handleNavigationWithFeedback('Perfil')}
+              >
+                <Text style={[
+                  styles.settingsButtonText,
+                  settings.largeText && { fontSize: fontSize },
+                  settings.boldText && { fontWeight: '500' }
+                ]}>
+                  Configurar preferencias
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity 
               style={styles.createFirstButton}
-              onPress={() => setShowCreateModal(true)}
+              onPress={handleCreatePostPress}
             >
-              <Text style={styles.createFirstButtonText}>
-                Crear primera publicación
+              <Text style={[
+                styles.createFirstButtonText,
+                settings.largeText && { fontSize: fontSize },
+                settings.boldText && { fontWeight: 'bold' }
+              ]}>
+                Crear publicación
               </Text>
             </TouchableOpacity>
           </View>
         ) : (
-          posts.map((post) => (
+          postsToShow.map((post) => (
             <PostCard
               key={post.id}
               post={post}
               onLike={handleLike}
               onSave={handleSave}
-              onComment={handleComment} // Usa la nueva función
+              onComment={handleComment}
+              onUserPress={handleUserProfilePress} // NUEVO: Pasar la función al PostCard
             />
           ))
         )}
@@ -823,11 +1462,16 @@ const FeedScreen = ({ navigation }) => {
 
       <TouchableOpacity 
         style={styles.floatingButton} 
-        onPress={() => setShowCreateModal(true)}
+        onPress={handleCreatePostPress}
       >
         <View style={styles.floatingButtonContent}>
           <Ionicons name="add" size={16} color="#FFF" />
-          <Text style={styles.floatingButtonText}>Crear</Text>
+          <Text style={[
+            styles.floatingButtonText,
+            settings.boldText && { fontWeight: 'bold' }
+          ]}>
+            Crear
+          </Text>
         </View>
       </TouchableOpacity>
 
@@ -838,53 +1482,177 @@ const FeedScreen = ({ navigation }) => {
         userName={userName}
       />
       
-      {/* --- Agregar el CommentModal --- */}
       <CommentModal
         visible={showCommentModal}
         onClose={handleCloseCommentModal}
         postId={selectedPostId}
         postTitle={selectedPostTitle}
-        userName={userName} // Pasar el nombre de usuario actual para el comentario
+        userName={userName}
       />
-      {/* ---------------------------------- */}
 
-      <View style={styles.bottomWave} />
+      <View style={[
+        styles.bottomWave,
+        settings.darkMode && styles.darkBottomWave,
+        settings.highContrast && styles.highContrastBottomWave
+      ]} />
     </SafeAreaView>
   );
 };
 
-// Los estilos de FeedScreen (se mantienen igual, solo se añade 'commentStyles')
+// Estilos - MODIFICADOS PARA HEADER CON LOGO CENTRADO
 const styles = StyleSheet.create({
-  // ... (MANTENER TODOS LOS ESTILOS EXISTENTES PARA FeedScreen, PostCard, CreatePostModal)
   container: {
     flex: 1,
     backgroundColor: '#FFF8DC',
   },
+  darkContainer: {
+    backgroundColor: '#1a1a1a',
+  },
+  highContrastContainer: {
+    backgroundColor: '#000000',
+  },
+  darkCard: {
+    backgroundColor: '#2d2d2d',
+  },
+  highContrastCard: {
+    backgroundColor: '#000000',
+    borderColor: '#FFFFFF',
+    borderWidth: 2,
+  },
+  darkHeader: {
+    backgroundColor: '#000000',
+  },
+  highContrastHeader: {
+    backgroundColor: '#000000',
+    borderBottomColor: '#FFFFFF',
+    borderBottomWidth: 2,
+  },
+  darkBottomWave: {
+    backgroundColor: '#8B0000',
+  },
+  highContrastBottomWave: {
+    backgroundColor: '#FFFFFF',
+  },
   header: {
     flexDirection: 'row',
-    justifyContent: "space-between",
+    justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: '#000000ff',
     paddingHorizontal: 10,
     paddingVertical: 1,
+    position: 'relative',
   },
   headerButton: {
     padding: 10,
     paddingVertical: 35,
   },
+  // --- NUEVO ESTILO: Contenedor para botones derechos ---
+  headerRightButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  // --- ESTILO MODIFICADO: Logo centrado ---
   headerCenter: {
+    position: 'absolute',
+    left: '50%',
+    marginLeft: -17.5, // Mitad del ancho del logo (35/2)
     backgroundColor: '#FFA500',
-    right: 4,
     width: 35,
     height: 35,
     borderRadius: 80,
     justifyContent: 'center',
     alignItems: "center",
+    top: '50%',
+    marginTop: -17.5, // Mitad del alto del logo (35/2)
   },
   headerLogo: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#000',
+  },
+  // Nuevos estilos para filtros
+  filterIndicators: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+  },
+  filterIndicator: {
+    fontSize: 12,
+    color: '#8B0000',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  badge: {
+    backgroundColor: '#FFA500',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 5,
+    minWidth: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    color: '#000',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  settingsButton: {
+    backgroundColor: '#FFF',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginTop: 10,
+    borderWidth: 2,
+    borderColor: '#8B0000',
+  },
+  settingsButtonText: {
+    color: '#8B0000',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  // NUEVOS ESTILOS PARA CATEGORÍAS EN POSTS
+  categoryTag: {
+    backgroundColor: '#8B0000',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 10,
+  },
+  categoryTagText: {
+    color: '#FFA500',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  // NUEVO ESTILO: Contenedor para el nombre de usuario clickeable
+  userNameContainer: {
+    flex: 1,
+    paddingVertical: 5,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#8B0000',
+    marginBottom: 8,
+  },
+  // NUEVOS ESTILOS PARA SELECTOR DE CATEGORÍAS
+  categorySelectorButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    backgroundColor: '#FFF',
+  },
+  categorySelectorText: {
+    fontSize: 16,
+    color: '#999',
+  },
+  categorySelectedText: {
+    color: '#333',
+    fontWeight: '500',
   },
   tabContainer: {
     flexDirection: 'row',
@@ -900,6 +1668,8 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     marginHorizontal: 5,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   activeTab: {
     backgroundColor: '#8B0000',
@@ -931,12 +1701,9 @@ const styles = StyleSheet.create({
   postHeader: {
     padding: 15,
     paddingBottom: 0,
-  },
-  userName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#8B0000',
-    marginBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   postContent: {
     paddingHorizontal: 15,
@@ -1223,12 +1990,12 @@ const styles = StyleSheet.create({
   },
 });
 
-// --- NUEVOS ESTILOS PARA COMMENT MODAL ---
+// Estilos para Comment Modal (se mantienen igual)
 const commentStyles = StyleSheet.create({
   modalOverlay: styles.modalOverlay,
   modalContainer: {
     ...styles.modalContainer,
-    minHeight: '50%', // Ajuste para comentarios
+    minHeight: '50%',
   },
   modalHeader: styles.modalHeader,
   modalHeaderButton: styles.modalHeaderButton,
@@ -1267,7 +2034,6 @@ const commentStyles = StyleSheet.create({
     marginTop: 10,
     textAlign: 'center',
   },
-
   commentInputContainer: {
     flexDirection: 'row',
     padding: 10,
@@ -1288,7 +2054,7 @@ const commentStyles = StyleSheet.create({
     marginRight: 10,
     borderWidth: 1,
     borderColor: '#DDD',
-    textAlignVertical: 'center', // Para Android
+    textAlignVertical: 'center',
   },
   sendButton: {
     backgroundColor: '#8B0000',
@@ -1300,6 +2066,98 @@ const commentStyles = StyleSheet.create({
   },
   disabledSendButton: {
     opacity: 0.5,
+  },
+});
+
+// NUEVOS ESTILOS PARA EL MODAL DE SELECCIÓN DE CATEGORÍAS
+const categoriesSelectorStyles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#FFF8DC',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+    minHeight: '60%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  modalHeaderButton: {
+    padding: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  saveButton: {
+    color: '#8B0000',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 15,
+  },
+  description: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 15,
+    lineHeight: 20,
+  },
+  selectedCount: {
+    fontSize: 14,
+    color: '#8B0000',
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  categoriesList: {
+    flex: 1,
+  },
+  categoriesGrid: {
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  categoryItem: {
+    width: '48%',
+    backgroundColor: '#FFF',
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#F0F0F0',
+  },
+  categoryItemSelected: {
+    backgroundColor: '#8B0000',
+    borderColor: '#8B0000',
+  },
+  categoryIcon: {
+    marginRight: 10,
+  },
+  categoryName: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#666',
+  },
+  categoryNameSelected: {
+    color: '#FFA500',
+    fontWeight: '600',
   },
 });
 
