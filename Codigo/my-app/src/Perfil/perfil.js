@@ -11,6 +11,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { 
@@ -24,11 +25,488 @@ import {
   where,
   setDoc,
   getDoc,
-  serverTimestamp 
+  getDocs,
+  serverTimestamp,
+  orderBy 
 } from 'firebase/firestore';
 
 // IMPORTACIÓN CORREGIDA - desde la carpeta firebase/config
 import { db, auth } from '../../firebase/config';
+
+// --- NUEVO COMPONENTE: Modal de Categorías de Preferencia ---
+const CategoriesModal = ({ visible, onClose, onSave, userCategories }) => {
+  const [selectedCategories, setSelectedCategories] = useState(userCategories || []);
+  
+  // Lista de categorías disponibles
+  const availableCategories = [
+    { id: 'tecnologia', name: 'Tecnología', icon: 'phone-portrait' },
+    { id: 'deportes', name: 'Deportes', icon: 'basketball' },
+    { id: 'musica', name: 'Música', icon: 'musical-notes' },
+    { id: 'arte', name: 'Arte', icon: 'color-palette' },
+    { id: 'ciencia', name: 'Ciencia', icon: 'flask' },
+    { id: 'viajes', name: 'Viajes', icon: 'airplane' },
+    { id: 'comida', name: 'Comida', icon: 'restaurant' },
+    { id: 'moda', name: 'Moda', icon: 'shirt' },
+    { id: 'juegos', name: 'Juegos', icon: 'game-controller' },
+    { id: 'educacion', name: 'Educación', icon: 'school' },
+    { id: 'negocios', name: 'Negocios', icon: 'briefcase' },
+    { id: 'salud', name: 'Salud', icon: 'fitness' },
+    { id: 'animales', name: 'Animales', icon: 'paw' },
+    { id: 'naturaleza', name: 'Naturaleza', icon: 'leaf' },
+    { id: 'deportes_extremos', name: 'Deportes Extremos', icon: 'rocket' },
+    { id: 'cocina', name: 'Cocina', icon: 'cafe' },
+    { id: 'fotografia', name: 'Fotografía', icon: 'camera' },
+    { id: 'cine', name: 'Cine', icon: 'film' },
+    { id: 'libros', name: 'Libros', icon: 'book' },
+    { id: 'automoviles', name: 'Automóviles', icon: 'car' }
+  ];
+
+  const toggleCategory = (categoryId) => {
+    setSelectedCategories(prev => {
+      if (prev.includes(categoryId)) {
+        return prev.filter(id => id !== categoryId);
+      } else {
+        return [...prev, categoryId];
+      }
+    });
+  };
+
+  const handleSave = () => {
+    onSave(selectedCategories);
+    onClose();
+  };
+
+  const handleClose = () => {
+    setSelectedCategories(userCategories || []);
+    onClose();
+  };
+
+  const renderCategoryItem = ({ item }) => (
+    <TouchableOpacity
+      style={[
+        categoriesStyles.categoryItem,
+        selectedCategories.includes(item.id) && categoriesStyles.categoryItemSelected
+      ]}
+      onPress={() => toggleCategory(item.id)}
+    >
+      <View style={categoriesStyles.categoryIcon}>
+        <Ionicons 
+          name={item.icon} 
+          size={20} 
+          color={selectedCategories.includes(item.id) ? "#FFA500" : "#666"} 
+        />
+      </View>
+      <Text style={[
+        categoriesStyles.categoryName,
+        selectedCategories.includes(item.id) && categoriesStyles.categoryNameSelected
+      ]}>
+        {item.name}
+      </Text>
+      {selectedCategories.includes(item.id) && (
+        <Ionicons name="checkmark-circle" size={20} color="#FFA500" />
+      )}
+    </TouchableOpacity>
+  );
+
+  return (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={visible}
+      onRequestClose={handleClose}
+    >
+      <View style={categoriesStyles.modalOverlay}>
+        <View style={categoriesStyles.modalContainer}>
+          <View style={categoriesStyles.modalHeader}>
+            <TouchableOpacity onPress={handleClose} style={categoriesStyles.modalHeaderButton}>
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+            <Text style={categoriesStyles.modalTitle}>Categorías de Preferencia</Text>
+            <TouchableOpacity onPress={handleSave} style={categoriesStyles.modalHeaderButton}>
+              <Text style={categoriesStyles.saveButton}>Guardar</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={categoriesStyles.modalContent}>
+            <Text style={categoriesStyles.description}>
+              Selecciona las categorías que más te interesan. Esto ayudará a mostrar publicaciones relevantes en tu feed "Para ti".
+            </Text>
+            
+            <Text style={categoriesStyles.selectedCount}>
+              {selectedCategories.length} de {availableCategories.length} categorías seleccionadas
+            </Text>
+
+            <FlatList
+              data={availableCategories}
+              renderItem={renderCategoryItem}
+              keyExtractor={item => item.id}
+              numColumns={2}
+              columnWrapperStyle={categoriesStyles.categoriesGrid}
+              showsVerticalScrollIndicator={false}
+              style={categoriesStyles.categoriesList}
+            />
+
+            <View style={categoriesStyles.modalActions}>
+              <TouchableOpacity 
+                style={categoriesStyles.clearButton}
+                onPress={() => setSelectedCategories([])}
+              >
+                <Text style={categoriesStyles.clearButtonText}>Limpiar todo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={categoriesStyles.selectAllButton}
+                onPress={() => setSelectedCategories(availableCategories.map(cat => cat.id))}
+              >
+                <Text style={categoriesStyles.selectAllButtonText}>Seleccionar todo</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// --- NUEVO COMPONENTE: Modal de Búsqueda Avanzada ---
+const AdvancedSearchModal = ({ visible, onClose, onSearch, posts }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchType, setSearchType] = useState('title'); // 'title', 'description', 'date'
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  const handleSearch = () => {
+    if (!searchTerm.trim() && searchType !== 'date') {
+      Alert.alert('Error', 'Por favor ingresa un término de búsqueda');
+      return;
+    }
+
+    setIsSearching(true);
+    
+    let results = [...posts];
+
+    // Aplicar filtros según el tipo de búsqueda
+    if (searchType === 'title') {
+      results = results.filter(post => 
+        post.Titulo?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    } else if (searchType === 'description') {
+      results = results.filter(post => 
+        post.Descripcion?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    } else if (searchType === 'date') {
+      if (startDate || endDate) {
+        results = results.filter(post => {
+          if (!post.Fecha_publicacion) return false;
+          
+          const postDate = post.Fecha_publicacion.toDate();
+          let matches = true;
+
+          if (startDate) {
+            const start = new Date(startDate);
+            matches = matches && postDate >= start;
+          }
+
+          if (endDate) {
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999); // Incluir todo el día
+            matches = matches && postDate <= end;
+          }
+
+          return matches;
+        });
+      }
+    }
+
+    setSearchResults(results);
+    setIsSearching(false);
+  };
+
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setStartDate('');
+    setEndDate('');
+    setSearchResults([]);
+  };
+
+  const handleSelectPost = (post) => {
+    onSearch(post);
+    onClose();
+  };
+
+  const renderSearchResult = ({ item }) => (
+    <TouchableOpacity 
+      style={searchStyles.resultItem}
+      onPress={() => handleSelectPost(item)}
+    >
+      <View style={searchStyles.resultContent}>
+        <Text style={searchStyles.resultTitle}>{item.Titulo}</Text>
+        <Text style={searchStyles.resultDescription} numberOfLines={2}>
+          {item.Descripcion}
+        </Text>
+        <Text style={searchStyles.resultDate}>
+          {item.Fecha_publicacion 
+            ? item.Fecha_publicacion.toDate().toLocaleDateString('es-ES')
+            : 'Fecha no disponible'
+          }
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color="#666" />
+    </TouchableOpacity>
+  );
+
+  const handleClose = () => {
+    handleClearFilters();
+    onClose();
+  };
+
+  return (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={visible}
+      onRequestClose={handleClose}
+    >
+      <View style={searchStyles.modalOverlay}>
+        <View style={searchStyles.modalContainer}>
+          <View style={searchStyles.modalHeader}>
+            <TouchableOpacity onPress={handleClose} style={searchStyles.modalHeaderButton}>
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+            <Text style={searchStyles.modalTitle}>Búsqueda Avanzada</Text>
+            <TouchableOpacity 
+              onPress={handleClearFilters} 
+              style={searchStyles.modalHeaderButton}
+            >
+              <Text style={searchStyles.clearButton}>Limpiar</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={searchStyles.modalContent} showsVerticalScrollIndicator={false}>
+            {/* Tipo de Búsqueda */}
+            <View style={searchStyles.section}>
+              <Text style={searchStyles.sectionTitle}>Tipo de Búsqueda</Text>
+              <View style={searchStyles.filterButtons}>
+                <TouchableOpacity 
+                  style={[
+                    searchStyles.filterButton,
+                    searchType === 'title' && searchStyles.filterButtonActive
+                  ]}
+                  onPress={() => setSearchType('title')}
+                >
+                  <Text style={[
+                    searchStyles.filterButtonText,
+                    searchType === 'title' && searchStyles.filterButtonTextActive
+                  ]}>
+                    Título
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[
+                    searchStyles.filterButton,
+                    searchType === 'description' && searchStyles.filterButtonActive
+                  ]}
+                  onPress={() => setSearchType('description')}
+                >
+                  <Text style={[
+                    searchStyles.filterButtonText,
+                    searchType === 'description' && searchStyles.filterButtonTextActive
+                  ]}>
+                    Descripción
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[
+                    searchStyles.filterButton,
+                    searchType === 'date' && searchStyles.filterButtonActive
+                  ]}
+                  onPress={() => setSearchType('date')}
+                >
+                  <Text style={[
+                    searchStyles.filterButtonText,
+                    searchType === 'date' && searchStyles.filterButtonTextActive
+                  ]}>
+                    Fecha
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Campo de Búsqueda */}
+            {(searchType === 'title' || searchType === 'description') && (
+              <View style={searchStyles.section}>
+                <Text style={searchStyles.sectionTitle}>
+                  Buscar en {searchType === 'title' ? 'títulos' : 'descripciones'}
+                </Text>
+                <TextInput
+                  style={searchStyles.textInput}
+                  placeholder={`Ingresa palabras clave...`}
+                  value={searchTerm}
+                  onChangeText={setSearchTerm}
+                />
+              </View>
+            )}
+
+            {/* Filtro por Fecha */}
+            {searchType === 'date' && (
+              <View style={searchStyles.section}>
+                <Text style={searchStyles.sectionTitle}>Filtrar por Fecha</Text>
+                <View style={searchStyles.dateContainer}>
+                  <View style={searchStyles.dateInputContainer}>
+                    <Text style={searchStyles.dateLabel}>Desde:</Text>
+                    <TextInput
+                      style={searchStyles.dateInput}
+                      placeholder="YYYY-MM-DD"
+                      value={startDate}
+                      onChangeText={setStartDate}
+                    />
+                  </View>
+                  <View style={searchStyles.dateInputContainer}>
+                    <Text style={searchStyles.dateLabel}>Hasta:</Text>
+                    <TextInput
+                      style={searchStyles.dateInput}
+                      placeholder="YYYY-MM-DD"
+                      value={endDate}
+                      onChangeText={setEndDate}
+                    />
+                  </View>
+                </View>
+                <Text style={searchStyles.helpText}>
+                  Formato: AAAA-MM-DD (ej: 2024-01-15)
+                </Text>
+              </View>
+            )}
+
+            {/* Botón de Búsqueda */}
+            <TouchableOpacity 
+              style={searchStyles.searchButton}
+              onPress={handleSearch}
+              disabled={isSearching}
+            >
+              {isSearching ? (
+                <Text style={searchStyles.searchButtonText}>Buscando...</Text>
+              ) : (
+                <Text style={searchStyles.searchButtonText}>
+                  Buscar ({posts.length} publicaciones)
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Resultados de Búsqueda */}
+            {searchResults.length > 0 && (
+              <View style={searchStyles.resultsSection}>
+                <Text style={searchStyles.resultsTitle}>
+                  Resultados ({searchResults.length})
+                </Text>
+                <FlatList
+                  data={searchResults}
+                  renderItem={renderSearchResult}
+                  keyExtractor={item => item.id}
+                  scrollEnabled={false}
+                  style={searchStyles.resultsList}
+                />
+              </View>
+            )}
+
+            {searchResults.length === 0 && (searchTerm || startDate || endDate) && !isSearching && (
+              <View style={searchStyles.emptyState}>
+                <Ionicons name="search-outline" size={50} color="#CCC" />
+                <Text style={searchStyles.emptyStateText}>No se encontraron resultados</Text>
+                <Text style={searchStyles.emptyStateSubtext}>
+                  Prueba con otros términos o filtros de búsqueda
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// --- COMPONENTE ACTUALIZADO: Modal para listar Seguidos/Seguidores ---
+const FollowModal = ({ visible, onClose, type, users, currentUserId, navigation }) => {
+  const handleViewProfile = (userId) => {
+    onClose();
+    navigation.navigate('UserProfile', { userId });
+  };
+
+  const renderUserItem = ({ item }) => (
+    <TouchableOpacity 
+      style={followStyles.userItem}
+      onPress={() => handleViewProfile(item.id)}
+    >
+      <View style={followStyles.userInfo}>
+        <View style={followStyles.avatar}>
+          {item.avatar ? (
+            <Image source={{ uri: item.avatar }} style={followStyles.avatarImage} />
+          ) : (
+            <Ionicons name="person" size={24} color="#8B0000" />
+          )}
+        </View>
+        <View style={followStyles.userDetails}>
+          <Text style={followStyles.userName}>{item.nombre || 'Usuario'}</Text>
+          <Text style={followStyles.userEmail}>{item.email}</Text>
+        </View>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color="#666" />
+    </TouchableOpacity>
+  );
+
+  return (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={visible}
+      onRequestClose={onClose}
+    >
+      <View style={followStyles.modalOverlay}>
+        <View style={followStyles.modalContainer}>
+          <View style={followStyles.modalHeader}>
+            <TouchableOpacity onPress={onClose} style={followStyles.modalHeaderButton}>
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+            <Text style={followStyles.modalTitle}>
+              {type === 'following' ? 'Seguidos' : 'Seguidores'}
+            </Text>
+            <View style={{ width: 44 }} />
+          </View>
+
+          {users.length === 0 ? (
+            <View style={followStyles.emptyState}>
+              <Ionicons 
+                name={type === 'following' ? "people-outline" : "person-outline"} 
+                size={60} 
+                color="#CCC" 
+              />
+              <Text style={followStyles.emptyStateText}>
+                {type === 'following' 
+                  ? 'No sigues a ningún usuario aún' 
+                  : 'No tienes seguidores aún'
+                }
+              </Text>
+              <Text style={followStyles.emptyStateSubtext}>
+                {type === 'following'
+                  ? 'Busca usuarios y comienza a seguirles'
+                  : 'Comparte tu perfil para conseguir seguidores'
+                }
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={users}
+              renderItem={renderUserItem}
+              keyExtractor={item => item.id}
+              style={followStyles.usersList}
+              showsVerticalScrollIndicator={false}
+            />
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+};
 
 // Componente de Post
 const PostCard = ({ post, onLike, onTag, onComment, onDelete, isOwner }) => (
@@ -281,7 +759,15 @@ const CreatePostModal = ({ visible, onClose, onCreate }) => {
 const ProfileScreen = ({ navigation }) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showFollowModal, setShowFollowModal] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showCategoriesModal, setShowCategoriesModal] = useState(false); // NUEVO ESTADO
+  const [followModalType, setFollowModalType] = useState('following');
   const [posts, setPosts] = useState([]);
+  const [filteredPosts, setFilteredPosts] = useState([]);
+  const [following, setFollowing] = useState([]);
+  const [followers, setFollowers] = useState([]);
+  const [userCategories, setUserCategories] = useState([]); // NUEVO ESTADO
   const [profile, setProfile] = useState({
     name: 'Nombre',
     description: 'Descripción',
@@ -289,11 +775,120 @@ const ProfileScreen = ({ navigation }) => {
     avatar: ''
   });
 
-  // Cargar perfil y publicaciones al iniciar
+  const currentUserId = auth.currentUser?.uid;
+
+  // Cargar perfil, publicaciones y datos de seguimiento al iniciar
   useEffect(() => {
     loadProfileFromFirebase();
     loadPostsFromFirebase();
+    loadFollowData();
+    loadUserCategories(); // NUEVA FUNCIÓN
   }, []);
+
+  // NUEVA FUNCIÓN: Cargar categorías del usuario
+  const loadUserCategories = async () => {
+    try {
+      if (!currentUserId) return;
+
+      const userDocRef = doc(db, 'Spaghetti', 'Usuario', 'Usuario', currentUserId);
+      const userDoc = await getDoc(userDocRef);
+
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        setUserCategories(userData.categories || []);
+      }
+    } catch (error) {
+      console.error('Error cargando categorías del usuario:', error);
+    }
+  };
+
+  // NUEVA FUNCIÓN: Guardar categorías del usuario
+  const handleSaveCategories = async (categories) => {
+    try {
+      if (!currentUserId) {
+        Alert.alert('Error', 'Debes iniciar sesión para guardar preferencias');
+        return;
+      }
+
+      const userDocRef = doc(db, 'Spaghetti', 'Usuario', 'Usuario', currentUserId);
+      
+      await setDoc(userDocRef, {
+        categories: categories,
+        ultimaActualizacion: serverTimestamp()
+      }, { merge: true });
+
+      setUserCategories(categories);
+      Alert.alert('¡Éxito!', 'Tus preferencias de categorías han sido guardadas');
+    } catch (error) {
+      console.error('Error guardando categorías:', error);
+      Alert.alert('Error', 'No se pudieron guardar las categorías');
+    }
+  };
+
+  // NUEVA FUNCIÓN: Manejar resultado de búsqueda
+  const handleSearchResult = (post) => {
+    setFilteredPosts([post]);
+  };
+
+  // NUEVA FUNCIÓN: Restablecer vista normal
+  const resetPostsView = () => {
+    setFilteredPosts([]);
+  };
+
+  // Cargar datos de seguimiento
+  const loadFollowData = async () => {
+    try {
+      if (!currentUserId) return;
+
+      const userDocRef = doc(db, 'Spaghetti', 'Usuario', 'Usuario', currentUserId);
+      const userDoc = await getDoc(userDocRef);
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const followingIds = userData.following || [];
+        
+        const followingUsers = await getUsersInfo(followingIds);
+        setFollowing(followingUsers);
+        
+        const followersQuery = query(
+          collection(db, 'Spaghetti', 'Usuario', 'Usuario'),
+          where('following', 'array-contains', currentUserId)
+        );
+        
+        const followersSnapshot = await getDocs(followersQuery);
+        const followersData = followersSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })).filter(user => user.id !== currentUserId);
+        
+        setFollowers(followersData);
+      }
+    } catch (error) {
+      console.error('Error cargando datos de seguimiento:', error);
+    }
+  };
+
+  // Obtener información de usuarios por sus IDs
+  const getUsersInfo = async (userIds) => {
+    if (!userIds || userIds.length === 0) return [];
+
+    const usersInfo = [];
+    for (const userId of userIds) {
+      try {
+        const userDocRef = doc(db, 'Spaghetti', 'Usuario', 'Usuario', userId);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+          usersInfo.push({
+            id: userId,
+            ...userDoc.data()
+          });
+        }
+      } catch (error) {
+        console.error(`Error obteniendo info del usuario ${userId}:`, error);
+      }
+    }
+    return usersInfo;
+  };
 
   // Cargar perfil desde Firebase
   const loadProfileFromFirebase = async () => {
@@ -317,7 +912,6 @@ const ProfileScreen = ({ navigation }) => {
           avatar: userData.avatar || ''
         });
       } else {
-        // Si no existe el documento, crear uno por defecto
         console.log('Creando perfil por defecto...');
         const defaultJoinDate = new Date().toLocaleDateString('es-ES', { 
           year: 'numeric', 
@@ -332,7 +926,9 @@ const ProfileScreen = ({ navigation }) => {
           avatar: '',
           userId: user.uid,
           email: user.email,
-          fechaCreacion: serverTimestamp()
+          fechaCreacion: serverTimestamp(),
+          following: [],
+          categories: [] // NUEVO CAMPO
         });
 
         setProfile(prev => ({
@@ -345,32 +941,7 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
-  // Guardar perfil en Firebase
-  const saveProfileToFirebase = async (updatedProfile) => {
-    try {
-      const user = auth.currentUser;
-      if (!user) throw new Error('Usuario no autenticado');
-
-      const userDocRef = doc(db, 'Spaghetti', 'Usuario', 'Usuario', user.uid);
-      
-      await setDoc(userDocRef, {
-        nombre: updatedProfile.name,
-        descripcion: updatedProfile.description,
-        avatar: updatedProfile.avatar,
-        userId: user.uid,
-        email: user.email,
-        ultimaActualizacion: serverTimestamp()
-      }, { merge: true }); // merge: true para no sobreescribir otros campos
-
-      console.log('Perfil guardado en Firebase');
-      return true;
-    } catch (error) {
-      console.error('Error guardando perfil:', error);
-      throw error;
-    }
-  };
-
-  // Obtener publicaciones del usuario actual
+  // --- SOLUCIÓN 2 IMPLEMENTADA: Obtener publicaciones del usuario actual ---
   const loadPostsFromFirebase = () => {
     const user = auth.currentUser;
     if (!user) {
@@ -379,6 +950,7 @@ const ProfileScreen = ({ navigation }) => {
       return;
     }
 
+    // CONSULTA SIN ORDERBY PARA EVITAR EL ERROR DE ÍNDICE
     const postsQuery = query(
       collection(db, 'Spaghetti/Publicaciones/Publicaciones'),
       where('userId', '==', user.uid)
@@ -390,15 +962,19 @@ const ProfileScreen = ({ navigation }) => {
         ...doc.data()
       }));
       
-      // Ordenar por fecha localmente
+      // ORDENAMIENTO LOCAL - Esto evita el error de índice
       postsData.sort((a, b) => {
-        if (a.Fecha_publicacion && b.Fecha_publicacion) {
-          return b.Fecha_publicacion.toDate() - a.Fecha_publicacion.toDate();
+        try {
+          const dateA = a.Fecha_publicacion ? a.Fecha_publicacion.toDate() : new Date(0);
+          const dateB = b.Fecha_publicacion ? b.Fecha_publicacion.toDate() : new Date(0);
+          return dateB - dateA; // Más reciente primero
+        } catch (error) {
+          return 0; // Si hay error, no cambiar orden
         }
-        return 0;
       });
       
       setPosts(postsData);
+      setFilteredPosts([]); // Resetear filtros cuando se cargan nuevos posts
     }, (error) => {
       console.error('Error obteniendo posts:', error);
       Alert.alert('Error', 'No se pudieron cargar las publicaciones');
@@ -487,10 +1063,8 @@ const ProfileScreen = ({ navigation }) => {
   // Guardar perfil (local y en Firebase)
   const handleSaveProfile = async (updatedProfile) => {
     try {
-      // Guardar en Firebase
       await saveProfileToFirebase(updatedProfile);
       
-      // Actualizar estado local
       setProfile({
         ...profile,
         ...updatedProfile
@@ -503,6 +1077,62 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
+  // Guardar perfil en Firebase
+  const saveProfileToFirebase = async (updatedProfile) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('Usuario no autenticado');
+
+      const userDocRef = doc(db, 'Spaghetti', 'Usuario', 'Usuario', user.uid);
+      
+      await setDoc(userDocRef, {
+        nombre: updatedProfile.name,
+        descripcion: updatedProfile.description,
+        avatar: updatedProfile.avatar,
+        userId: user.uid,
+        email: user.email,
+        ultimaActualizacion: serverTimestamp()
+      }, { merge: true });
+
+      console.log('Perfil guardado en Firebase');
+      return true;
+    } catch (error) {
+      console.error('Error guardando perfil:', error);
+      throw error;
+    }
+  };
+
+  // Manejar clic en botones de seguidos/seguidores
+  const handleFollowButtonPress = (type) => {
+    setFollowModalType(type);
+    setShowFollowModal(true);
+  };
+
+  const handleCloseFollowModal = () => {
+    setShowFollowModal(false);
+  };
+
+  // NUEVA FUNCIÓN: Manejar búsqueda avanzada
+  const handleAdvancedSearch = () => {
+    setShowSearchModal(true);
+  };
+
+  const handleCloseSearchModal = () => {
+    setShowSearchModal(false);
+  };
+
+  // NUEVA FUNCIÓN: Manejar categorías
+  const handleCategoriesPress = () => {
+    setShowCategoriesModal(true);
+  };
+
+  const handleCloseCategoriesModal = () => {
+    setShowCategoriesModal(false);
+  };
+
+  // Determinar qué posts mostrar (todos o filtrados)
+  const postsToShow = filteredPosts.length > 0 ? filteredPosts : posts;
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="#000" barStyle="light-content" />
@@ -514,7 +1144,11 @@ const ProfileScreen = ({ navigation }) => {
         </TouchableOpacity>
         
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.headerButton}>
+          {/* BOTÓN DE BÚSQUEDA AVANZADA */}
+          <TouchableOpacity 
+            style={styles.headerButton}
+            onPress={handleAdvancedSearch}
+          >
             <Ionicons name="search" size={24} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.headerButton}>
@@ -544,28 +1178,65 @@ const ProfileScreen = ({ navigation }) => {
           >
             <Text style={styles.editButtonText}>Editar Perfil</Text>
           </TouchableOpacity>
+
+          {/* NUEVO BOTÓN: Categorías de Preferencia */}
+          <TouchableOpacity 
+            style={styles.categoriesButton}
+            onPress={handleCategoriesPress}
+          >
+            <Ionicons name="pricetags" size={16} color="#8B0000" />
+            <Text style={styles.categoriesButtonText}>
+              Categorías de Preferencia {userCategories.length > 0 && `(${userCategories.length})`}
+            </Text>
+          </TouchableOpacity>
           
           <View style={styles.followContainer}>
-            <TouchableOpacity style={styles.followButton}>
+            <TouchableOpacity 
+              style={styles.followButton}
+              onPress={() => handleFollowButtonPress('following')}
+            >
+              <Text style={styles.followCount}>{following.length}</Text>
               <Text style={styles.followButtonText}>Seguidos</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.followButton}>
+            <TouchableOpacity 
+              style={styles.followButton}
+              onPress={() => handleFollowButtonPress('followers')}
+            >
+              <Text style={styles.followCount}>{followers.length}</Text>
               <Text style={styles.followButtonText}>Seguidores</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Indicador de búsqueda activa */}
+          {filteredPosts.length > 0 && (
+            <TouchableOpacity 
+              style={styles.searchIndicator}
+              onPress={resetPostsView}
+            >
+              <Text style={styles.searchIndicatorText}>
+                Mostrando {filteredPosts.length} resultado(s) de búsqueda
+              </Text>
+              <Ionicons name="close" size={16} color="#8B0000" />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* User Posts */}
-        {posts.length === 0 ? (
+        {postsToShow.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="document-text-outline" size={60} color="#CCC" />
-            <Text style={styles.emptyStateText}>No hay publicaciones aún</Text>
+            <Text style={styles.emptyStateText}>
+              {filteredPosts.length === 0 ? 'No hay publicaciones aún' : 'No se encontraron resultados'}
+            </Text>
             <Text style={styles.emptyStateSubtext}>
-              Crea tu primera publicación presionando el botón "+ Crear"
+              {filteredPosts.length === 0 
+                ? 'Crea tu primera publicación presionando el botón "+ Crear"'
+                : 'Intenta con otros términos de búsqueda'
+              }
             </Text>
           </View>
         ) : (
-          posts.map((post) => (
+          postsToShow.map((post) => (
             <PostCard
               key={post.id}
               post={post}
@@ -605,13 +1276,39 @@ const ProfileScreen = ({ navigation }) => {
         onCreate={handleCreatePost}
       />
 
+      {/* Modal: Seguidos/Seguidores ACTUALIZADO */}
+      <FollowModal
+        visible={showFollowModal}
+        onClose={handleCloseFollowModal}
+        type={followModalType}
+        users={followModalType === 'following' ? following : followers}
+        currentUserId={currentUserId}
+        navigation={navigation}
+      />
+
+      {/* NUEVO MODAL: Categorías de Preferencia */}
+      <CategoriesModal
+        visible={showCategoriesModal}
+        onClose={handleCloseCategoriesModal}
+        onSave={handleSaveCategories}
+        userCategories={userCategories}
+      />
+
+      {/* NUEVO MODAL: Búsqueda Avanzada */}
+      <AdvancedSearchModal
+        visible={showSearchModal}
+        onClose={handleCloseSearchModal}
+        onSearch={handleSearchResult}
+        posts={posts}
+      />
+
       {/* Bottom Wave */}
       <View style={styles.bottomWave} />
     </SafeAreaView>
   );
 };
 
-// Los estilos se mantienen igual, solo añade este nuevo estilo:
+// Estilos actualizados para los botones de seguimiento
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -677,26 +1374,70 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
     paddingVertical: 10,
     borderRadius: 25,
-    marginBottom: 20,
+    marginBottom: 15,
   },
   editButtonText: {
     color: '#FFA500',
     fontSize: 16,
     fontWeight: '500',
   },
+  // NUEVO ESTILO: Botón de categorías
+  categoriesButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 25,
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: '#8B0000',
+    gap: 8,
+  },
+  categoriesButtonText: {
+    color: '#8B0000',
+    fontSize: 14,
+    fontWeight: '500',
+  },
   followContainer: {
     flexDirection: 'row',
-    gap: 20,
+    gap: 30,
   },
   followButton: {
     backgroundColor: '#8B0000',
-    paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingHorizontal: 25,
+    paddingVertical: 12,
     borderRadius: 20,
+    alignItems: 'center',
+    minWidth: 100,
+  },
+  followCount: {
+    color: '#FFA500',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 2,
   },
   followButtonText: {
     color: '#FFA500',
     fontSize: 14,
+    fontWeight: '500',
+  },
+  // NUEVO ESTILO: Indicador de búsqueda
+  searchIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#8B0000',
+    gap: 8,
+  },
+  searchIndicatorText: {
+    color: '#8B0000',
+    fontSize: 12,
     fontWeight: '500',
   },
   postCard: {
@@ -916,6 +1657,420 @@ const styles = StyleSheet.create({
     color: '#FFA500',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+});
+
+// --- NUEVOS ESTILOS PARA EL MODAL DE CATEGORÍAS ---
+const categoriesStyles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#FFF8DC',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+    minHeight: '70%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  modalHeaderButton: {
+    padding: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  saveButton: {
+    color: '#8B0000',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 15,
+  },
+  description: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 15,
+    lineHeight: 20,
+  },
+  selectedCount: {
+    fontSize: 14,
+    color: '#8B0000',
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  categoriesList: {
+    flex: 1,
+  },
+  categoriesGrid: {
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  categoryItem: {
+    width: '48%',
+    backgroundColor: '#FFF',
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#F0F0F0',
+  },
+  categoryItemSelected: {
+    backgroundColor: '#8B0000',
+    borderColor: '#8B0000',
+  },
+  categoryIcon: {
+    marginRight: 10,
+  },
+  categoryName: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#666',
+  },
+  categoryNameSelected: {
+    color: '#FFA500',
+    fontWeight: '600',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    paddingVertical: 20,
+    gap: 10,
+  },
+  clearButton: {
+    flex: 1,
+    backgroundColor: '#F5F5F5',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#DDD',
+  },
+  clearButtonText: {
+    color: '#666',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  selectAllButton: {
+    flex: 1,
+    backgroundColor: '#8B0000',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  selectAllButtonText: {
+    color: '#FFA500',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+});
+
+// --- NUEVOS ESTILOS PARA EL MODAL DE BÚSQUEDA AVANZADA ---
+const searchStyles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#FFF8DC',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+    minHeight: '70%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  modalHeaderButton: {
+    padding: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  clearButton: {
+    color: '#8B0000',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  section: {
+    marginVertical: 15,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 10,
+  },
+  filterButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  filterButton: {
+    flex: 1,
+    backgroundColor: '#FFF',
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#DDD',
+    alignItems: 'center',
+  },
+  filterButtonActive: {
+    backgroundColor: '#8B0000',
+    borderColor: '#8B0000',
+  },
+  filterButtonText: {
+    color: '#666',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  filterButtonTextActive: {
+    color: '#FFA500',
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: '#FFF',
+    color: '#333',
+  },
+  dateContainer: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  dateInputContainer: {
+    flex: 1,
+  },
+  dateLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 5,
+  },
+  dateInput: {
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    backgroundColor: '#FFF',
+    color: '#333',
+  },
+  helpText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 5,
+    fontStyle: 'italic',
+  },
+  searchButton: {
+    backgroundColor: '#8B0000',
+    paddingVertical: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  searchButtonText: {
+    color: '#FFA500',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  resultsSection: {
+    marginTop: 20,
+  },
+  resultsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 10,
+  },
+  resultsList: {
+    maxHeight: 300,
+  },
+  resultItem: {
+    backgroundColor: '#FFF',
+    padding: 15,
+    borderRadius: 12,
+    marginVertical: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  resultContent: {
+    flex: 1,
+  },
+  resultTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  resultDescription: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  resultDate: {
+    fontSize: 12,
+    color: '#999',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 5,
+    textAlign: 'center',
+  },
+});
+
+// --- ESTILOS ACTUALIZADOS PARA EL MODAL DE SEGUIDOS/SEGUIDORES ---
+const followStyles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#FFF8DC',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+    minHeight: '50%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  modalHeaderButton: {
+    padding: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  usersList: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  userItem: {
+    backgroundColor: '#FFF',
+    padding: 15,
+    borderRadius: 12,
+    marginVertical: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F0F0F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  userDetails: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 2,
+  },
+  userEmail: {
+    fontSize: 14,
+    color: '#666',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    color: '#666',
+    marginTop: 16,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
 
