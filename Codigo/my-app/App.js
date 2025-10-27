@@ -20,6 +20,10 @@ import PrivacySecurity from './src/PrivacySecurity/PrivacySecurity';
 import SearchUsersScreen from './src/SearchUsers/SearchUsersScreen';
 import UserProfileScreen from './src/UserProfile/UserProfileScreen';
 
+// --- NUEVAS PANTALLAS DE MENSAJERÍA ---
+import MensajesScreen from './src/Mensajes/MensajesScreen';
+import ChatScreen from './src/Chat/ChatScreen';
+
 // --- IMPORTAR EL PROVIDER DE ACCESIBILIDAD ---
 import { AccessibilityProvider } from './src/context/AccesibilityContext';
 
@@ -59,6 +63,26 @@ export default function App() {
             name="UserProfile" 
             component={UserProfileScreen}
             options={{ headerShown: false }}
+          />
+          
+          {/* --- NUEVAS PANTALLAS DE MENSAJERÍA --- */}
+          <Stack.Screen 
+            name="Mensajes" 
+            component={MensajesScreen}
+            options={{ 
+              headerShown: false,
+              presentation: 'card',
+              animation: 'slide_from_right'
+            }} 
+          />
+          <Stack.Screen 
+            name="Chat" 
+            component={ChatScreen}
+            options={{ 
+              headerShown: false,
+              presentation: 'card',
+              animation: 'slide_from_right'
+            }} 
           />
         </Stack.Navigator>
       </NavigationContainer>
