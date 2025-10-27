@@ -12,11 +12,11 @@ import {
   TextInput,
   Alert,
   FlatList,
-  ActivityIndicator
+  ActivityIndicator,
+  Linking
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
 import { 
   collection, 
   addDoc, 
@@ -740,7 +740,7 @@ const PostCard = ({ post, onLike, onTag, onComment, onDelete, isOwner }) => (
     </View>
     <Text style={styles.postTitle}>{post.Titulo || 'Título'}</Text>
     <Text style={styles.postDescription}>{post.Descripcion || 'Descripción'}</Text>
-    {/* MOSTRAR IMAGEN BASE64 O URL NORMAL */}
+    {/* MOSTRAR IMAGEN BASE64 O URL NORMAL - Misma estructura que Feed.js */}
     {post.ImagenBase64 && (
       <Image source={{ uri: post.ImagenBase64 }} style={styles.postImage} />
     )}
@@ -766,7 +766,7 @@ const PostCard = ({ post, onLike, onTag, onComment, onDelete, isOwner }) => (
   </View>
 );
 
-// Modal para Editar Perfil - CON BASE64
+// Modal para Editar Perfil - CON BASE64 (Misma estructura que Feed.js)
 const EditProfileModal = ({ visible, onClose, onSave, currentProfile, onImagePick }) => {
   const [name, setName] = useState(currentProfile.name);
   const [description, setDescription] = useState(currentProfile.description);
@@ -784,8 +784,6 @@ const EditProfileModal = ({ visible, onClose, onSave, currentProfile, onImagePic
       description: description.trim(),
       avatar: avatar
     });
-    
-    onClose();
   };
 
   const handleClose = () => {
@@ -804,10 +802,20 @@ const EditProfileModal = ({ visible, onClose, onSave, currentProfile, onImagePic
       }
     } catch (error) {
       console.error('Error seleccionando imagen:', error);
+      Alert.alert('Error', 'No se pudo cargar la imagen');
     } finally {
       setIsUploading(false);
     }
   };
+
+  // Resetear el estado cuando el modal se abre/cierra
+  useEffect(() => {
+    if (visible) {
+      setName(currentProfile.name);
+      setDescription(currentProfile.description);
+      setAvatar(currentProfile.avatar);
+    }
+  }, [visible, currentProfile]);
 
   return (
     <Modal
@@ -849,12 +857,12 @@ const EditProfileModal = ({ visible, onClose, onSave, currentProfile, onImagePic
                 </View>
               </TouchableOpacity>
               <Text style={styles.avatarHelpText}>
-                {isUploading ? 'Procesando imagen...' : 'Toca para cambiar foto'}
+                {isUploading ? 'Cargando imagen...' : 'Toca para cambiar foto'}
               </Text>
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Nombre</Text>
+              <Text style={styles.inputLabel}>Nombre *</Text>
               <TextInput
                 style={styles.textInput}
                 placeholder="Ingresa tu nombre..."
@@ -876,28 +884,23 @@ const EditProfileModal = ({ visible, onClose, onSave, currentProfile, onImagePic
                 maxLength={150}
               />
             </View>
-
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>URL de Avatar (Opcional)</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="https://ejemplo.com/avatar.jpg"
-                value={avatar}
-                onChangeText={setAvatar}
-                keyboardType="url"
-              />
-              <Text style={styles.helpText}>
-                O usa el botón de arriba para subir una foto desde tu dispositivo
-              </Text>
-            </View>
           </ScrollView>
 
           <View style={styles.modalActions}>
             <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
               <Text style={styles.cancelButtonText}>Cancelar</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.saveProfileButton} onPress={handleSave}>
-              <Text style={styles.saveProfileButtonText}>Guardar Cambios</Text>
+            <TouchableOpacity 
+              style={[
+                styles.saveProfileButton, 
+                (!name.trim() || isUploading) && styles.saveProfileButtonDisabled
+              ]} 
+              onPress={handleSave}
+              disabled={!name.trim() || isUploading}
+            >
+              <Text style={styles.saveProfileButtonText}>
+                {isUploading ? 'Guardando...' : 'Guardar Cambios'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1002,6 +1005,34 @@ const CreatePostModal = ({ visible, onClose, onCreate }) => {
   );
 };
 
+// FUNCIÓN PARA CONVERTIR IMAGEN A BASE64 - Misma estructura que Feed.js
+const uploadImage = async (uri) => {
+  try {
+    console.log('📸 Convirtiendo imagen a Base64...');
+    
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64data = reader.result;
+        console.log('✅ Imagen convertida a Base64, tamaño:', base64data.length);
+        resolve(base64data);
+      };
+      reader.onerror = () => {
+        reject(new Error('Error leyendo la imagen'));
+      };
+      reader.readAsDataURL(blob);
+    });
+    
+  } catch (error) {
+    console.error('❌ Error convirtiendo imagen:', error);
+    Alert.alert('Error', 'No se pudo procesar la imagen');
+    throw error;
+  }
+};
+
 // Pantalla de Perfil
 const ProfileScreen = ({ navigation }) => {
   const [showEditModal, setShowEditModal] = useState(false);
@@ -1032,7 +1063,7 @@ const ProfileScreen = ({ navigation }) => {
     (async () => {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permiso necesario', 'Necesitamos acceso a tu galería para que puedas subir fotos de perfil.');
+        console.log('Permisos de galería no concedidos');
       }
     })();
   }, []);
@@ -1045,57 +1076,79 @@ const ProfileScreen = ({ navigation }) => {
     loadUserCategories();
   }, []);
 
-  // Función para convertir imagen a Base64
-const convertImageToBase64 = async (uri) => {
-  try {
-    // SOLUCIÓN: Usar FileSystem.EncodingType.Base64 o simplemente 'base64'
-    const base64 = await FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.Base64 || 'base64',
-    });
-    
-    // Obtener el tipo MIME de la imagen
-    const fileInfo = await FileSystem.getInfoAsync(uri);
-    let mimeType = 'image/jpeg'; // Por defecto
-    
-    if (fileInfo.uri && fileInfo.uri.includes('.')) {
-      const extension = fileInfo.uri.split('.').pop().toLowerCase();
-      if (extension === 'png') mimeType = 'image/png';
-      else if (extension === 'gif') mimeType = 'image/gif';
-      else if (extension === 'webp') mimeType = 'image/webp';
-    }
-    
-    // Crear el data URI con el tipo MIME correcto
-    const imageBase64 = `data:${mimeType};base64,${base64}`;
-    return imageBase64;
-  } catch (error) {
-    console.error('Error convirtiendo imagen a Base64:', error);
-    throw error;
-  }
-};
-
-  // Función para seleccionar imagen de la galería y convertir a Base64
+  // FUNCIÓN PARA SELECCIONAR IMAGEN - Misma estructura que Feed.js
   const handleImagePick = async () => {
     try {
+      console.log('Iniciando selección de imagen...');
+      
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permisos necesarios', 
+          'Necesitamos acceso a tu galería para cambiar la foto de perfil.'
+        );
+        return null;
+      }
+
+      // Configuración de ImagePicker
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.7, // Calidad reducida para evitar archivos muy grandes
+        quality: 0.7,
+        base64: false, // No usar base64 de ImagePicker directamente
       });
 
-      if (!result.canceled && result.assets && result.assets[0].uri) {
+      console.log('Resultado de ImagePicker:', result);
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const asset = result.assets[0];
+        const imageUri = asset.uri;
+        
+        console.log('URI de imagen seleccionada:', imageUri);
+        
+        // Validaciones básicas
+        if (!imageUri) {
+          throw new Error('No se pudo obtener la URI de la imagen');
+        }
+
+        if (!currentUserId) {
+          throw new Error('Usuario no autenticado');
+        }
+
         setIsUploading(true);
         
-        // Convertir imagen a Base64
-        const imageBase64 = await convertImageToBase64(result.assets[0].uri);
+        // Mostrar feedback al usuario
+        Alert.alert('Procesando imagen', 'Por favor espera mientras se procesa tu foto de perfil...');
         
+        // Convertir imagen a Base64 usando la misma función que Feed.js
+        const base64Image = await uploadImage(imageUri);
+        
+        console.log('Imagen convertida a Base64 exitosamente');
         Alert.alert('¡Éxito!', 'Foto de perfil actualizada correctamente');
-        return imageBase64;
+        return base64Image;
+      } else if (result.canceled) {
+        console.log('Selección de imagen cancelada por el usuario');
+      } else {
+        console.log('No se seleccionó ninguna imagen');
       }
+      
       return null;
     } catch (error) {
-      console.error('Error seleccionando imagen:', error);
-      Alert.alert('Error', 'No se pudo procesar la imagen. Intenta con una imagen más pequeña.');
+      console.error('Error en handleImagePick:', error);
+      
+      let errorMessage = 'No se pudo procesar la imagen. ';
+      
+      if (error.message.includes('permisos')) {
+        errorMessage += 'Verifica los permisos de la aplicación.';
+      } else if (error.message.includes('tamaño')) {
+        errorMessage += 'La imagen es demasiado grande.';
+      } else {
+        errorMessage += error.message;
+      }
+      
+      Alert.alert('Error', errorMessage);
       return null;
     } finally {
       setIsUploading(false);
@@ -1379,17 +1432,26 @@ const convertImageToBase64 = async (uri) => {
   // Guardar perfil (local y en Firebase)
   const handleSaveProfile = async (updatedProfile) => {
     try {
+      console.log('Guardando perfil...', updatedProfile);
+      
+      setIsUploading(true);
+      
+      // Guardar en Firebase
       await saveProfileToFirebase(updatedProfile);
       
+      // Actualizar estado local
       setProfile({
         ...profile,
         ...updatedProfile
       });
       
       Alert.alert('¡Éxito!', 'Tu perfil ha sido actualizado y guardado');
+      setShowEditModal(false);
     } catch (error) {
       console.error('Error guardando perfil:', error);
-      Alert.alert('Error', 'No se pudo guardar el perfil en la base de datos');
+      Alert.alert('Error', `No se pudo guardar el perfil: ${error.message}`);
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -1399,22 +1461,28 @@ const convertImageToBase64 = async (uri) => {
       const user = auth.currentUser;
       if (!user) throw new Error('Usuario no autenticado');
 
+      console.log('Guardando en Firebase para usuario:', user.uid);
+
       const userDocRef = doc(db, 'Spaghetti', 'Usuario', 'Usuario', user.uid);
       
-      await setDoc(userDocRef, {
+      const profileData = {
         nombre: updatedProfile.name,
         descripcion: updatedProfile.description,
         avatar: updatedProfile.avatar,
         userId: user.uid,
         email: user.email,
         ultimaActualizacion: serverTimestamp()
-      }, { merge: true });
+      };
 
-      console.log('Perfil guardado en Firebase');
+      console.log('Datos a guardar en Firebase:', profileData);
+
+      await setDoc(userDocRef, profileData, { merge: true });
+
+      console.log('Perfil guardado exitosamente en Firebase');
       return true;
     } catch (error) {
-      console.error('Error guardando perfil:', error);
-      throw error;
+      console.error('Error detallado guardando en Firebase:', error);
+      throw new Error(`Error de Firebase: ${error.message}`);
     }
   };
 
@@ -1662,9 +1730,7 @@ const convertImageToBase64 = async (uri) => {
   );
 };
 
-// ... (los estilos se mantienen exactamente igual que en tu código anterior)
-
-// Estilos principales (se mantienen igual)
+// Estilos principales (se mantienen iguales)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -2029,11 +2095,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  saveProfileButtonDisabled: {
+    backgroundColor: '#CCCCCC',
+    opacity: 0.6,
+  },
 });
 
-// ... (los demás estilos: faqStyles, menuStyles, categoriesStyles, searchStyles, followStyles se mantienen igual)
-
-// Estilos para el Modal de Preguntas Frecuentes
+// Estilos para el Modal de Preguntas Frecuentes (se mantienen iguales)
 const faqStyles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
@@ -2128,7 +2196,7 @@ const faqStyles = StyleSheet.create({
   },
 });
 
-// Estilos para el Menú de Opciones
+// Estilos para el Menú de Opciones (se mantienen iguales)
 const menuStyles = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -2190,7 +2258,7 @@ const menuStyles = StyleSheet.create({
   },
 });
 
-// Estilos para el Modal de Categorías
+// Estilos para el Modal de Categorías (se mantienen iguales)
 const categoriesStyles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
@@ -2313,7 +2381,7 @@ const categoriesStyles = StyleSheet.create({
   },
 });
 
-// Estilos para el Modal de Búsqueda Avanzada
+// Estilos para el Modal de Búsqueda Avanzada (se mantienen iguales)
 const searchStyles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
@@ -2501,7 +2569,7 @@ const searchStyles = StyleSheet.create({
   },
 });
 
-// Estilos para el Modal de Seguidos/Seguidores
+// Estilos para el Modal de Seguidos/Seguidores (se mantienen iguales)
 const followStyles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
