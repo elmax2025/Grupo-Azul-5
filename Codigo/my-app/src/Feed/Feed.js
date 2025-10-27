@@ -987,6 +987,23 @@ const FeedScreen = ({ navigation }) => {
     setActiveTab(tab);
   };
 
+  // --- NUEVA FUNCIÓN: Navegar a mensajes ---
+  const handleNavigateToMessages = () => {
+    handleNavigationWithFeedback('Mensajes');
+  };
+
+  const handleNavigateToSearch = () => {
+    handleNavigationWithFeedback('SearchUsers');
+  };
+
+  const handleNavigateToSettings = () => {
+    handleNavigationWithFeedback('UserConfig');
+  };
+
+  const handleNavigateToProfile = () => {
+    handleNavigationWithFeedback('Perfil');
+  };
+
   // Cargar datos del usuario en tiempo real - MODIFICADO PARA TIEMPO REAL
   useEffect(() => {
     const user = auth.currentUser;
@@ -1212,7 +1229,7 @@ const FeedScreen = ({ navigation }) => {
 
     // Si es el perfil del usuario actual, navegar a la pantalla de perfil normal
     if (userId === currentUserId) {
-      handleNavigationWithFeedback('Perfil');
+      handleNavigateToProfile();
     } else {
       // Navegar a la pantalla de perfil de otro usuario
       handleNavigationWithFeedback('UserProfile', { 
@@ -1226,19 +1243,6 @@ const FeedScreen = ({ navigation }) => {
     setShowCommentModal(false);
     setSelectedPostId(null);
     setSelectedPostTitle('');
-  };
-
-  const handleNavigateToProfile = () => {
-    handleNavigationWithFeedback('Perfil');
-  };
-
-  const handleNavigateToSettings = () => {
-    handleNavigationWithFeedback('UserConfig');
-  };
-
-  // --- NUEVA FUNCIÓN: Navegar a pantalla de búsqueda ---
-  const handleNavigateToSearch = () => {
-    handleNavigationWithFeedback('SearchUsers');
   };
 
   // Determinar qué posts mostrar
@@ -1272,7 +1276,15 @@ const FeedScreen = ({ navigation }) => {
         
         {/* --- CONTENEDOR PARA BOTONES DERECHOS --- */}
         <View style={styles.headerRightButtons}>
-          {/* --- NUEVO BOTÓN DE BÚSQUEDA --- */}
+          {/* --- NUEVO BOTÓN DE MENSAJES --- */}
+          <TouchableOpacity 
+            style={styles.headerButton}
+            onPress={handleNavigateToMessages}
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={24} color="#8B0000" />
+          </TouchableOpacity>
+          
+          {/* --- BOTÓN DE BÚSQUEDA --- */}
           <TouchableOpacity 
             style={styles.headerButton}
             onPress={handleNavigateToSearch}
@@ -1422,7 +1434,7 @@ const FeedScreen = ({ navigation }) => {
             {activeTab === 'paraTi' && userCategories.length === 0 && (
               <TouchableOpacity 
                 style={styles.settingsButton}
-                onPress={() => handleNavigationWithFeedback('Perfil')}
+                onPress={() => handleNavigateToProfile()}
               >
                 <Text style={[
                   styles.settingsButtonText,
