@@ -74,10 +74,6 @@ const UserConfig = ({ navigation }) => {
     navigation.navigate('LikedPosts');
   };
 
-  const handleSharesPress = () => {
-    navigation.navigate('SharedPosts');
-  };
-
   const handlePrivacyPress = () => {
     navigation.navigate('PrivacySecurity');
   };
@@ -171,15 +167,6 @@ const UserConfig = ({ navigation }) => {
         >
           <Ionicons name="heart-outline" size={28} color="white" />
           <Text style={[styles.optionText, { color: theme.buttonTextColor }]}>Ver Me Gusta</Text>
-        </TouchableOpacity>
-
-        {/* Ver Compartidos */}
-        <TouchableOpacity
-          style={[styles.optionButton, { backgroundColor: theme.buttonBg }]}
-          onPress={handleSharesPress}
-        >
-          <Ionicons name="share-social-outline" size={28} color="#D4AF37" />
-          <Text style={[styles.optionText, { color: theme.buttonTextColor }]}>Ver Compartidos</Text>
         </TouchableOpacity>
 
         {/* Privacidad y Seguridad */}
