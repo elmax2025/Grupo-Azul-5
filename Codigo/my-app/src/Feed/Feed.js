@@ -235,6 +235,13 @@ const PostCard = ({ post, onLike, onSave, onComment, onUserPress }) => {
     onLike(post.id);
   };
 
+  const handleSavePress = () => {
+    if (settings.hapticFeedback) {
+      Vibration.vibrate(50);
+    }
+    onSave(post.id);
+  };
+
   const handleCommentPress = () => {
     if (settings.hapticFeedback) {
       Vibration.vibrate(50);
@@ -315,13 +322,16 @@ const PostCard = ({ post, onLike, onSave, onComment, onUserPress }) => {
             {post.Cant_MeGustas || 0}
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={onSave} style={styles.actionButton}>
+        
+        {/* Botón de Guardar - MODIFICADO */}
+        <TouchableOpacity onPress={handleSavePress} style={styles.actionButton}>
           <Ionicons 
             name={post.isSaved ? "bookmark" : "bookmark-outline"} 
             size={24} 
             color={post.isSaved ? "#8B0000" : "#666"} 
           />
         </TouchableOpacity>
+        
         {/* Botón de Comentarios */}
         <TouchableOpacity onPress={handleCommentPress} style={styles.actionButton}>
           <Ionicons name="chatbubble-outline" size={24} color="#666" />
@@ -949,7 +959,7 @@ const CreatePostModal = ({ visible, onClose, onCreatePost, userName }) => {
   );
 };
 
-// Pantalla Principal (Feed) - MODIFICADA PARA TIEMPO REAL
+// Pantalla Principal (Feed) - MODIFICADA CON FUNCIONALIDAD DE GUARDAR
 const FeedScreen = ({ navigation }) => {
   const { settings, fontSize } = useAccessibility();
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -964,6 +974,7 @@ const FeedScreen = ({ navigation }) => {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [userCategories, setUserCategories] = useState([]);
   const [followingUsers, setFollowingUsers] = useState([]);
+  const [savedPosts, setSavedPosts] = useState([]); // NUEVO: Estado para posts guardados
 
   // Función para manejar la navegación con feedback háptico
   const handleNavigationWithFeedback = (screen, params = {}) => {
@@ -1004,7 +1015,84 @@ const FeedScreen = ({ navigation }) => {
     handleNavigationWithFeedback('Perfil');
   };
 
-  // Cargar datos del usuario en tiempo real - MODIFICADO PARA TIEMPO REAL
+  // NUEVA FUNCIÓN: Cargar posts guardados del usuario
+  const loadSavedPosts = async (userId) => {
+    try {
+      if (!userId) return;
+
+      const userDocRef = doc(db, 'Spaghetti', 'Usuario', 'Usuario', userId);
+      const userDoc = await getDoc(userDocRef);
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        setSavedPosts(userData.savedPosts || []);
+      }
+    } catch (error) {
+      console.error('Error cargando posts guardados:', error);
+    }
+  };
+
+  // NUEVA FUNCIÓN: Guardar/Quitar post de guardados
+  const handleSave = async (postId) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        Alert.alert('Error', 'Debes iniciar sesión para guardar publicaciones');
+        return;
+      }
+
+      // Feedback háptico
+      if (settings.hapticFeedback) {
+        Vibration.vibrate(50);
+      }
+
+      const userDocRef = doc(db, 'Spaghetti', 'Usuario', 'Usuario', user.uid);
+      const userDoc = await getDoc(userDocRef);
+      
+      if (!userDoc.exists()) {
+        Alert.alert('Error', 'No se encontró el perfil del usuario');
+        return;
+      }
+
+      const userData = userDoc.data();
+      const currentSavedPosts = userData.savedPosts || [];
+      
+      let updatedSavedPosts;
+      let isCurrentlySaved = currentSavedPosts.includes(postId);
+
+      if (isCurrentlySaved) {
+        // Quitar de guardados
+        updatedSavedPosts = currentSavedPosts.filter(id => id !== postId);
+        setSavedPosts(updatedSavedPosts);
+      } else {
+        // Agregar a guardados
+        updatedSavedPosts = [...currentSavedPosts, postId];
+        setSavedPosts(updatedSavedPosts);
+      }
+
+      // Actualizar en Firestore
+      await updateDoc(userDocRef, {
+        savedPosts: updatedSavedPosts
+      });
+
+      // Actualizar el estado local de los posts
+      setPosts(prevPosts => 
+        prevPosts.map(post => 
+          post.id === postId 
+            ? { ...post, isSaved: !isCurrentlySaved }
+            : post
+        )
+      );
+
+      console.log(`✅ Post ${isCurrentlySaved ? 'quitado de' : 'agregado a'} guardados`);
+      
+    } catch (error) {
+      console.error('Error guardando post:', error);
+      Alert.alert('Error', 'No se pudo guardar la publicación');
+    }
+  };
+
+  // Cargar datos del usuario en tiempo real - MODIFICADO PARA CARGAR POSTS GUARDADOS
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) {
@@ -1021,6 +1109,7 @@ const FeedScreen = ({ navigation }) => {
         const userData = userDoc.data();
         setUserName(userData.nombre || user.email || 'Usuario');
         setUserCategories(userData.categories || []);
+        setSavedPosts(userData.savedPosts || []); // NUEVO: Cargar posts guardados
         
         // Cargar lista de usuarios seguidos
         if (userData.following && userData.following.length > 0) {
@@ -1032,6 +1121,7 @@ const FeedScreen = ({ navigation }) => {
         setUserName(user.email || 'Usuario');
         setUserCategories([]);
         setFollowingUsers([]);
+        setSavedPosts([]);
       }
     }, (error) => {
       console.error('Error escuchando cambios del usuario:', error);
@@ -1040,8 +1130,8 @@ const FeedScreen = ({ navigation }) => {
     return unsubscribeUser;
   }, []);
 
-  // Función para filtrar publicaciones según la pestaña activa
-  const filterPostsByTab = (allPosts, tab, categories, following) => {
+  // Función para filtrar publicaciones según la pestaña activa - MODIFICADA PARA GUARDADOS
+  const filterPostsByTab = (allPosts, tab, categories, following, savedPostsIds) => {
     if (tab === 'paraTi') {
       // Filtrar por categorías de preferencia
       if (categories && categories.length > 0) {
@@ -1065,11 +1155,19 @@ const FeedScreen = ({ navigation }) => {
         // Si no sigue a nadie, no mostrar posts
         return [];
       }
+    } else if (tab === 'guardados') {
+      // NUEVO: Filtrar posts guardados
+      if (savedPostsIds && savedPostsIds.length > 0) {
+        return allPosts.filter(post => savedPostsIds.includes(post.id));
+      } else {
+        // Si no hay posts guardados
+        return [];
+      }
     }
     return allPosts;
   };
 
-  // Cargar publicaciones desde Firebase - MODIFICADA PARA TIEMPO REAL
+  // Cargar publicaciones desde Firebase - MODIFICADA PARA INCLUIR ESTADO DE GUARDADO
   useEffect(() => {
     const loadPosts = () => {
       try {
@@ -1095,10 +1193,12 @@ const FeedScreen = ({ navigation }) => {
             };
 
             const userLiked = postData.likedBy && postData.likedBy.includes(user.uid);
+            const isSaved = savedPosts.includes(doc.id); // NUEVO: Verificar si está guardado
 
             return {
               ...postData,
-              userLiked: userLiked || false 
+              userLiked: userLiked || false,
+              isSaved: isSaved || false // NUEVO: Agregar estado de guardado
             };
           });
           
@@ -1120,7 +1220,7 @@ const FeedScreen = ({ navigation }) => {
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [currentUserId]);
+  }, [currentUserId, savedPosts]); // NUEVO: Agregar savedPosts como dependencia
 
   // ACTUALIZACIÓN EN TIEMPO REAL: Filtrar posts cuando cambian las preferencias o la pestaña
   useEffect(() => {
@@ -1129,11 +1229,12 @@ const FeedScreen = ({ navigation }) => {
         posts, 
         activeTab, 
         userCategories, 
-        followingUsers
+        followingUsers,
+        savedPosts // NUEVO: Pasar posts guardados
       );
       setFilteredPosts(filtered);
     }
-  }, [posts, activeTab, userCategories, followingUsers]);
+  }, [posts, activeTab, userCategories, followingUsers, savedPosts]); // NUEVO: Agregar savedPosts
 
   // Crear nueva publicación - MODIFICADA PARA INCLUIR CATEGORÍA
   const handleCreatePost = async (postData) => {
@@ -1203,10 +1304,6 @@ const FeedScreen = ({ navigation }) => {
       console.error('Error actualizando like:', error);
       Alert.alert('Error', 'No se pudo actualizar el like');
     }
-  };
-
-  const handleSave = (postId) => {
-    console.log('Guardar post:', postId);
   };
 
   // handleComment
@@ -1301,7 +1398,7 @@ const FeedScreen = ({ navigation }) => {
         </View>
       </View>
 
-      {/* Indicadores de filtro activo */}
+      {/* Indicadores de filtro activo - MODIFICADO PARA GUARDADOS */}
       <View style={styles.filterIndicators}>
         {activeTab === 'paraTi' && userCategories.length > 0 && (
           <Text style={[
@@ -1339,8 +1436,28 @@ const FeedScreen = ({ navigation }) => {
             No sigues a ningún usuario
           </Text>
         )}
+        {/* NUEVO: Indicador para pestaña Guardados */}
+        {activeTab === 'guardados' && savedPosts.length > 0 && (
+          <Text style={[
+            styles.filterIndicator,
+            settings.largeText && { fontSize: fontSize },
+            settings.boldText && { fontWeight: '500' }
+          ]}>
+            Tienes {savedPosts.length} publicaciones guardadas - Mostrando {filteredPosts.length}
+          </Text>
+        )}
+        {activeTab === 'guardados' && savedPosts.length === 0 && (
+          <Text style={[
+            styles.filterIndicator,
+            settings.largeText && { fontSize: fontSize },
+            settings.boldText && { fontWeight: '500' }
+          ]}>
+            No tienes publicaciones guardadas
+          </Text>
+        )}
       </View>
 
+      {/* MODIFICADO: Agregar pestaña de Guardados */}
       <View style={styles.tabContainer}>
         <TouchableOpacity 
           style={[
@@ -1384,6 +1501,28 @@ const FeedScreen = ({ navigation }) => {
             </View>
           )}
         </TouchableOpacity>
+        {/* NUEVA PESTAÑA: Guardados */}
+        <TouchableOpacity 
+          style={[
+            styles.tab, 
+            activeTab === 'guardados' && styles.activeTab
+          ]}
+          onPress={() => handleTabChange('guardados')}
+        >
+          <Text style={[
+            styles.tabText, 
+            activeTab === 'guardados' && styles.activeTabText,
+            settings.largeText && { fontSize: fontSize },
+            settings.boldText && { fontWeight: 'bold' }
+          ]}>
+            Guardados
+          </Text>
+          {savedPosts.length > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{savedPosts.length}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -1401,7 +1540,11 @@ const FeedScreen = ({ navigation }) => {
         ) : postsToShow.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons 
-              name={activeTab === 'paraTi' ? "compass-outline" : "people-outline"} 
+              name={
+                activeTab === 'paraTi' ? "compass-outline" : 
+                activeTab === 'siguiendo' ? "people-outline" : 
+                "bookmark-outline"
+              } 
               size={60} 
               color="#CCC" 
             />
@@ -1414,9 +1557,13 @@ const FeedScreen = ({ navigation }) => {
                 ? userCategories.length === 0 
                   ? 'No hay publicaciones aún' 
                   : 'No hay publicaciones en tus categorías de interés'
-                : followingUsers.length === 0
+                : activeTab === 'siguiendo'
+                ? followingUsers.length === 0
                   ? 'No sigues a ningún usuario'
                   : 'No hay publicaciones de usuarios que sigues'
+                : savedPosts.length === 0
+                ? 'No tienes publicaciones guardadas'
+                : 'No se encontraron publicaciones guardadas'
               }
             </Text>
             <Text style={[
@@ -1428,7 +1575,9 @@ const FeedScreen = ({ navigation }) => {
                 ? userCategories.length === 0
                   ? 'Selecciona categorías de interés en tu perfil'
                   : 'Los usuarios que sigues no han publicado en tus categorías'
-                : 'Sigue a más usuarios para ver sus publicaciones aquí'
+                : activeTab === 'siguiendo'
+                ? 'Sigue a más usuarios para ver sus publicaciones aquí'
+                : 'Guarda publicaciones que te interesen para verlas aquí más tarde'
               }
             </Text>
             {activeTab === 'paraTi' && userCategories.length === 0 && (
@@ -1442,6 +1591,20 @@ const FeedScreen = ({ navigation }) => {
                   settings.boldText && { fontWeight: '500' }
                 ]}>
                   Configurar preferencias
+                </Text>
+              </TouchableOpacity>
+            )}
+            {activeTab === 'guardados' && (
+              <TouchableOpacity 
+                style={styles.settingsButton}
+                onPress={() => handleTabChange('paraTi')}
+              >
+                <Text style={[
+                  styles.settingsButtonText,
+                  settings.largeText && { fontSize: fontSize },
+                  settings.boldText && { fontWeight: '500' }
+                ]}>
+                  Explorar publicaciones
                 </Text>
               </TouchableOpacity>
             )}
@@ -1464,9 +1627,9 @@ const FeedScreen = ({ navigation }) => {
               key={post.id}
               post={post}
               onLike={handleLike}
-              onSave={handleSave}
+              onSave={handleSave} // MODIFICADO: Pasar función handleSave
               onComment={handleComment}
-              onUserPress={handleUserProfilePress} // NUEVO: Pasar la función al PostCard
+              onUserPress={handleUserProfilePress}
             />
           ))
         )}
@@ -1669,16 +1832,16 @@ const styles = StyleSheet.create({
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: '#FFF8DC',
-    paddingHorizontal: 20,
+    paddingHorizontal: 10,
     paddingVertical: 10,
     paddingBottom: 10,
   },
   tab: {
     flex: 1,
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 10,
     borderRadius: 25,
-    marginHorizontal: 5,
+    marginHorizontal: 3,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
